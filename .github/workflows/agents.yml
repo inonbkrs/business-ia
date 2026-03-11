@@ -1,0 +1,19 @@
+name: Business IA Agents
+
+on:
+  schedule:
+    - cron: '0 8-22 * * 0-4'
+  workflow_dispatch:
+
+jobs:
+  run-agents:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+      - uses: actions/setup-python@v4
+        with:
+          python-version: '3.11'
+      - name: Install dependencies
+        run: pip install crewai groq requests
+      - name: Run agents
+        run: python business_agents_groq.py
