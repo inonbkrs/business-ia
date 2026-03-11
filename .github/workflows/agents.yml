@@ -16,4 +16,8 @@ jobs:
       - name: Install dependencies
         run: pip install crewai groq requests
       - name: Run agents
+        env:
+          GROQ_API_KEY: ${{ secrets.GROQ_API_KEY }}
+          SUPABASE_KEY: ${{ secrets.SUPABASE_KEY }}
+          GMAIL_PASSWORD: ${{ secrets.GMAIL_PASSWORD }}
         run: python business_agents_groq.py
