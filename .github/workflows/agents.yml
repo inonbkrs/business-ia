@@ -1,27 +1,26 @@
 name: Business IA - Rapport Automatique
- 
+
 on:
   schedule:
-    - cron: '0 8 * * *'  # Chaque jour à 8h UTC
-  workflow_dispatch:       # Lancement manuel possible
- 
+    - cron: '0 8 * * *'
+  workflow_dispatch:
+
 jobs:
   run-agents:
     runs-on: ubuntu-latest
- 
     steps:
       - name: Checkout du repo
         uses: actions/checkout@v3
- 
+
       - name: Setup Python 3.11
         uses: actions/setup-python@v4
         with:
           python-version: '3.11'
- 
+
       - name: Installation des dépendances
         run: |
-          pip install crewai groq supabase secure-smtplib
- 
+          pip install crewai groq supabase
+
       - name: Lancement des agents IA
         env:
           GROQ_API_KEY: ${{ secrets.GROQ_API_KEY }}
