@@ -1,4 +1,6 @@
 import os
+import re
+import json
 import smtplib
 import datetime
 from email.mime.text import MIMEText
@@ -16,6 +18,10 @@ GMAIL_USER     = os.environ.get("GMAIL_USER", "inonbkrs@gmail.com")
 GMAIL_PASSWORD = os.environ.get("GMAIL_PASSWORD")
 GROQ_MODEL     = "llama-3.3-70b-versatile"
 
+# ⚠️ MODE TEST : tous les emails sont redirigés vers ton adresse
+# Quand tu auras de vrais prospects, mets MODE_TEST = False
+MODE_TEST = True
+
 groq_client     = Groq(api_key=GROQ_API_KEY)
 supabase_client = create_client(SUPABASE_URL, SUPABASE_KEY)
 
@@ -32,7 +38,7 @@ def groq_llm(prompt: str) -> str:
     return response.choices[0].message.content.strip()
 
 # ─────────────────────────────────────────
-# AGENTS DE BASE (4 agents originaux)
+# AGENTS DE BASE
 # ─────────────────────────────────────────
 def agent_analyse_marche(niche: str) -> str:
     prompt = f"""
@@ -51,13 +57,20 @@ def agent_generation_prospects(niche: str, analyse: str) -> str:
 Tu es un expert en génération de leads B2B. Niche : {niche}.
 Contexte marché : {analyse[:500]}
 
-Génère 5 profils de prospects idéaux avec :
-- Nom fictif de l'entreprise
-- Secteur précis
-- Problème principal
-- Budget estimé
-- Email fictif professionnel (format: prenom.nom@entreprise.fr)
-Format JSON lisible.
+Génère 5 profils de prospects idéaux.
+IMPORTANT : Réponds UNIQUEMENT avec un tableau JSON valide, sans texte avant ou après.
+Format exact :
+[
+  {{
+    "entreprise": "Nom de l'entreprise",
+    "secteur": "Secteur précis",
+    "probleme": "Problème principal",
+    "budget": "Budget estimé",
+    "email": "prenom.nom@entreprise.fr",
+    "prenom": "Prénom du contact",
+    "nom": "Nom du contact"
+  }}
+]
 """
     return groq_llm(prompt)
 
@@ -89,26 +102,25 @@ Sois concret et actionnable.
 
 # ─────────────────────────────────────────
 # AGENT 5 — DÉFAILLANCE 🚨
-# Détecte les problèmes et envoie une alerte
 # ─────────────────────────────────────────
 def agent_defaillance(niche: str, rapport: dict) -> dict:
     prompt = f"""
 Tu es un agent de contrôle qualité pour un système business automatisé.
 Niche analysée : {niche}
 
-Voici le rapport généré :
+Rapport généré :
 - Analyse marché : {rapport.get('analyse', '')[:400]}
-- Prospects générés : {rapport.get('prospects', '')[:300]}
+- Prospects : {rapport.get('prospects', '')[:300]}
 - Email de vente : {rapport.get('email', '')[:300]}
 - Plan 90 jours : {rapport.get('plan_90j', '')[:300]}
 
-Évalue ce rapport et détecte les défaillances potentielles :
+Évalue et détecte les défaillances :
 1. Score de santé global (0 à 100)
-2. Liste des problèmes détectés (vague, incomplet, irréaliste, etc.)
-3. Niveau d'alerte : VERT (tout va bien) / ORANGE (attention) / ROUGE (action requise)
-4. Actions correctives recommandées
+2. Problèmes détectés
+3. Niveau d'alerte : VERT / ORANGE / ROUGE
+4. Actions correctives
 
-Réponds en français, de façon structurée et concise.
+Réponds en français, structuré et concis.
 """
     analyse_defaillance = groq_llm(prompt)
 
@@ -127,7 +139,6 @@ Réponds en français, de façon structurée et concise.
 
 # ─────────────────────────────────────────
 # AGENT 6 — ÉVOLUTION 📈
-# Analyse l'historique et propose des améliorations
 # ─────────────────────────────────────────
 def agent_evolution(niche: str, rapport_actuel: dict) -> str:
     try:
@@ -138,9 +149,9 @@ def agent_evolution(niche: str, rapport_actuel: dict) -> str:
             .limit(5) \
             .execute()
         nb_rapports = len(historique.data) if historique.data else 0
-        contexte_historique = f"{nb_rapports} rapport(s) précédent(s) trouvé(s) pour cette niche."
+        contexte_historique = f"{nb_rapports} rapport(s) précédent(s) trouvé(s)."
     except Exception:
-        contexte_historique = "Pas d'historique disponible (premier rapport)."
+        contexte_historique = "Pas d'historique disponible."
 
     prompt = f"""
 Tu es un agent d'évolution et d'optimisation business.
@@ -152,21 +163,112 @@ Rapport actuel :
 - Email vente : {rapport_actuel.get('email', '')[:300]}
 
 Propose :
-1. 3 axes d'amélioration concrets pour le prochain rapport
-2. De nouvelles niches connexes à explorer
-3. Une stratégie pour augmenter les revenus estimés
-4. Un message de motivation pour l'entrepreneur (court, impactant)
+1. 3 axes d'amélioration concrets
+2. Nouvelles niches connexes à explorer
+3. Stratégie pour augmenter les revenus
+4. Message de motivation pour l'entrepreneur
 
-Réponds en français, de façon structurée et actionnable.
+Réponds en français, structuré et actionnable.
 """
     return groq_llm(prompt)
+
+# ─────────────────────────────────────────
+# EXTRACTION DES PROSPECTS DU JSON
+# ─────────────────────────────────────────
+def extraire_prospects(prospects_json: str) -> list:
+    """Extrait la liste de prospects depuis le JSON généré par l'Agent 2."""
+    try:
+        # Chercher un tableau JSON dans le texte
+        match = re.search(r'\[.*\]', prospects_json, re.DOTALL)
+        if match:
+            data = json.loads(match.group())
+            return data
+    except Exception as e:
+        print(f"⚠️  Impossible de parser les prospects JSON : {e}")
+    return []
+
+# ─────────────────────────────────────────
+# AGENT 4 — ENVOI EMAIL AUX PROSPECTS 📧
+# ─────────────────────────────────────────
+def agent_envoi_prospects(niche: str, prospects_json: str, email_vente_template: str):
+    """
+    Envoie un email personnalisé à chaque prospect généré.
+    En MODE_TEST, tous les emails sont redirigés vers GMAIL_USER.
+    """
+    if not GMAIL_PASSWORD:
+        print("⚠️  GMAIL_PASSWORD non configuré — envoi prospects ignoré")
+        return
+
+    prospects = extraire_prospects(prospects_json)
+
+    if not prospects:
+        print("⚠️  Aucun prospect extrait — envoi ignoré")
+        return
+
+    print(f"📧 Envoi aux prospects ({len(prospects)} contacts)...")
+
+    for i, prospect in enumerate(prospects, 1):
+        prenom     = prospect.get("prenom", "")
+        nom        = prospect.get("nom", "")
+        entreprise = prospect.get("entreprise", "")
+        probleme   = prospect.get("probleme", "")
+        email_dest = prospect.get("email", "")
+
+        if not email_dest:
+            continue
+
+        # Générer un email personnalisé pour ce prospect
+        prompt_perso = f"""
+Tu es un expert en cold email B2B.
+Personnalise cet email de vente pour ce prospect spécifique :
+
+Prénom : {prenom}
+Entreprise : {entreprise}
+Problème principal : {probleme}
+Niche : {niche}
+
+Template de base :
+{email_vente_template}
+
+Réécris l'email en intégrant naturellement le prénom, l'entreprise et le problème spécifique.
+Garde-le court (150 mots max). Réponds UNIQUEMENT avec l'email (objet + corps).
+"""
+        email_perso = groq_llm(prompt_perso)
+
+        # Extraire l'objet
+        lignes = email_perso.strip().split('\n')
+        objet = f"Une solution IA pour {entreprise}"
+        corps = email_perso
+
+        for ligne in lignes[:3]:
+            if "objet" in ligne.lower() or "subject" in ligne.lower() or ligne.startswith("Objet"):
+                objet = ligne.split(":", 1)[-1].strip()
+                corps = "\n".join(lignes[1:]).strip()
+                break
+
+        # En mode test → rediriger vers ton email
+        destinataire = GMAIL_USER if MODE_TEST else email_dest
+
+        msg = MIMEMultipart()
+        msg["From"]    = GMAIL_USER
+        msg["To"]      = destinataire
+        msg["Subject"] = f"[TEST - {email_dest}] {objet}" if MODE_TEST else objet
+        msg.attach(MIMEText(corps, "plain", "utf-8"))
+
+        try:
+            with smtplib.SMTP_SSL("smtp.gmail.com", 465) as server:
+                server.login(GMAIL_USER, GMAIL_PASSWORD)
+                server.sendmail(GMAIL_USER, destinataire, msg.as_string())
+            print(f"   ✅ [{i}/{len(prospects)}] Email envoyé → {email_dest} ({entreprise})")
+        except Exception as e:
+            print(f"   ❌ [{i}/{len(prospects)}] Erreur pour {email_dest} : {e}")
 
 # ─────────────────────────────────────────
 # ENVOI EMAIL — RAPPORT COMPLET
 # ─────────────────────────────────────────
 def envoyer_email_rapport(niche, rapport, defaillance, evolution):
     if not GMAIL_PASSWORD:
-        print("⚠️  GMAIL_PASSWORD non configuré — email ignoré")
+        print("⚠️  GMAIL_PASSWORD non configuré — email rapport ignoré")
         return
 
     niveau = defaillance.get("niveau_alerte", "VERT")
@@ -186,7 +288,7 @@ def envoyer_email_rapport(niche, rapport, defaillance, evolution):
 👥 PROSPECTS GÉNÉRÉS
 {rapport.get('prospects', '')}
 
-📧 EMAIL DE VENTE
+📧 EMAIL DE VENTE (template)
 {rapport.get('email', '')}
 
 📅 PLAN 90 JOURS
@@ -215,9 +317,9 @@ Généré automatiquement par Business IA System
         with smtplib.SMTP_SSL("smtp.gmail.com", 465) as server:
             server.login(GMAIL_USER, GMAIL_PASSWORD)
             server.sendmail(GMAIL_USER, GMAIL_USER, msg.as_string())
-        print(f"✅ Email envoyé — Alerte : {niveau}")
+        print(f"✅ Rapport principal envoyé — Alerte : {niveau}")
     except Exception as e:
-        print(f"❌ Erreur envoi email : {e}")
+        print(f"❌ Erreur envoi rapport : {e}")
 
 # ─────────────────────────────────────────
 # SAUVEGARDE SUPABASE
@@ -234,7 +336,7 @@ def sauvegarder_rapport(niche, rapport, defaillance, evolution):
         "date_creation":   datetime.datetime.utcnow().isoformat(),
     }
     result = supabase_client.table("rapports").insert(data).execute()
-    print(f"✅ Sauvegardé dans Supabase — ID: {result.data[0]['id'] if result.data else 'N/A'}")
+    print(f"✅ Sauvegardé Supabase — ID: {result.data[0]['id'] if result.data else 'N/A'}")
 
 # ─────────────────────────────────────────
 # PIPELINE PRINCIPAL
@@ -269,10 +371,13 @@ def lancer_pipeline(niche: str):
     print("📈 Agent 6 — Analyse évolution...")
     evolution = agent_evolution(niche, rapport)
 
+    print("📬 Agent 7 — Envoi emails aux prospects...")
+    agent_envoi_prospects(niche, prospects, email_vente)
+
     print("💾 Sauvegarde Supabase...")
     sauvegarder_rapport(niche, rapport, defaillance, evolution)
 
-    print("📬 Envoi email rapport complet...")
+    print("📨 Envoi rapport complet...")
     envoyer_email_rapport(niche, rapport, defaillance, evolution)
 
     print(f"✅ Pipeline terminé pour : {niche}\n")
@@ -287,6 +392,11 @@ NICHES = [
 ]
 
 if __name__ == "__main__":
+    mode = "TEST" if MODE_TEST else "PRODUCTION"
+    print(f"\n{'='*50}")
+    print(f"  BUSINESS IA SYSTEM — Mode : {mode}")
+    print(f"{'='*50}")
+
     for niche in NICHES:
         try:
             lancer_pipeline(niche)
