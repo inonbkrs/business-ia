@@ -1,260 +1,203 @@
 import os
-import requests
 import smtplib
+import datetime
 from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
-from datetime import datetime
 from crewai import Agent, Task, Crew, Process
+from groq import Groq
+from supabase import create_client
 
-# ============================================================
-# CONFIGURATION
-# ============================================================
-os.environ["GROQ_API_KEY"] = "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"
-os.environ["OPENAI_API_KEY"] = "fake-key"
+# ─────────────────────────────────────────
+# CONFIGURATION — clés depuis les variables d'environnement
+# ─────────────────────────────────────────
+GROQ_API_KEY    = os.environ.get("GROQ_API_KEY")
+SUPABASE_URL    = os.environ.get("SUPABASE_URL")
+SUPABASE_KEY    = os.environ.get("SUPABASE_KEY")
+GMAIL_USER      = os.environ.get("GMAIL_USER", "inonbkrs@gmail.com")
+GMAIL_PASSWORD  = os.environ.get("GMAIL_PASSWORD")
+GROQ_MODEL      = "llama-3.3-70b-versatile"
 
-SUPABASE_URL = "https://molqnxwmnnfwvcjvujgd.supabase.co"
-SUPABASE_KEY = "sb_publishable_8gDItFCUvX7X1OwqjWBeXA_vASgp6VC"
-MODELE = "groq/llama-3.3-70b-versatile"
+# Clients
+groq_client     = Groq(api_key=GROQ_API_KEY)
+supabase_client = create_client(SUPABASE_URL, SUPABASE_KEY)
 
-GMAIL_EMAIL = "inonbkrs@gmail.com"
-GMAIL_PASSWORD = "xdto mcqg mciv snno"
+# ─────────────────────────────────────────
+# FONCTION LLM via Groq
+# ─────────────────────────────────────────
+def groq_llm(prompt: str) -> str:
+    response = groq_client.chat.completions.create(
+        model=GROQ_MODEL,
+        messages=[{"role": "user", "content": prompt}],
+        temperature=0.7,
+        max_tokens=2000,
+    )
+    return response.choices[0].message.content.strip()
 
-resultats = {}
+# ─────────────────────────────────────────
+# AGENTS
+# ─────────────────────────────────────────
 
-# ============================================================
-# FONCTION — ENVOYER PAR EMAIL
-# ============================================================
-def envoyer_email(rapport):
-    try:
-        msg = MIMEMultipart()
-        msg['From'] = GMAIL_EMAIL
-        msg['To'] = GMAIL_EMAIL
-        msg['Subject'] = f"🤖 Rapport Business IA — {datetime.now().strftime('%d/%m/%Y à %H:%M')}"
+def agent_analyse_marche(niche: str) -> str:
+    prompt = f"""
+Tu es un expert en analyse de marché. Analyse la niche suivante : {niche}.
+Réponds en français avec :
+1. Taille du marché et tendances
+2. Problèmes principaux des clients
+3. Concurrents principaux
+4. Opportunités à saisir
+5. Revenus estimés mensuels pour une offre IA (fourchette réaliste)
+"""
+    return groq_llm(prompt)
 
-        corps = f"""
-Bonjour,
+def agent_generation_prospects(niche: str, analyse: str) -> str:
+    prompt = f"""
+Tu es un expert en génération de leads B2B. Niche : {niche}.
+Contexte marché : {analyse[:500]}
 
-Voici le rapport complet de vos agents IA pour aujourd'hui.
+Génère 5 profils de prospects idéaux avec :
+- Nom fictif de l'entreprise
+- Secteur précis
+- Problème principal
+- Budget estimé
+- Email fictif professionnel (format: prenom.nom@entreprise.fr)
+Format JSON lisible.
+"""
+    return groq_llm(prompt)
 
-{'='*50}
-{rapport}
-{'='*50}
+def agent_email_vente(niche: str, analyse: str) -> str:
+    prompt = f"""
+Tu es un copywriter expert en cold email B2B. Niche : {niche}.
+Contexte : {analyse[:400]}
 
-Bonne journée !
-Vos agents IA 🤖
-        """
-        msg.attach(MIMEText(corps, 'plain', 'utf-8'))
+Écris un email de vente percutant (cold email) pour proposer une solution IA automatisée.
+- Objet accrocheur
+- Corps court (150 mots max)
+- CTA clair
+- Ton professionnel mais humain
+- En français
+"""
+    return groq_llm(prompt)
 
-        server = smtplib.SMTP('smtp.gmail.com', 587)
-        server.starttls()
-        server.login(GMAIL_EMAIL, GMAIL_PASSWORD)
-        server.send_message(msg)
-        server.quit()
-        print("✅ Email envoyé avec succès à", GMAIL_EMAIL)
-    except Exception as e:
-        print(f"❌ Erreur email : {e}")
+def agent_plan_90_jours(niche: str) -> str:
+    prompt = f"""
+Tu es un consultant business. Crée un plan d'action 90 jours pour lancer une offre IA dans la niche : {niche}.
+Structure :
+- Mois 1 : Fondations (semaines 1-4)
+- Mois 2 : Lancement (semaines 5-8)  
+- Mois 3 : Croissance (semaines 9-12)
+KPIs à suivre chaque semaine.
+Sois concret et actionnable.
+"""
+    return groq_llm(prompt)
 
-# ============================================================
-# FONCTION — ENVOYER DANS SUPABASE
-# ============================================================
-def envoyer_rapport_supabase(data):
-    url = f"{SUPABASE_URL}/rest/v1/rapports"
-    headers = {
-        "apikey": SUPABASE_KEY,
-        "Authorization": f"Bearer {SUPABASE_KEY}",
-        "Content-Type": "application/json",
-        "Prefer": "return=minimal"
+# ─────────────────────────────────────────
+# SAUVEGARDE SUPABASE
+# ─────────────────────────────────────────
+
+def sauvegarder_rapport(niche, analyse, prospects, email_vente, plan_90j):
+    data = {
+        "niche":           niche,
+        "contenu":         analyse,
+        "revenus_estimes": "5 000 – 15 000 € / mois",
+        "prospects":       prospects,
+        "emails_vente":    email_vente,
+        "plan_90_jours":   plan_90j,
+        "kpis":            "CA mensuel, leads contactés, taux de réponse, contrats signés",
+        "date_creation":   datetime.datetime.utcnow().isoformat(),
     }
-    response = requests.post(url, headers=headers, json=data)
-    if response.status_code in [200, 201]:
-        print("✅ Rapport envoyé dans Supabase avec succès !")
-    else:
-        print(f"❌ Erreur Supabase : {response.status_code} — {response.text}")
+    result = supabase_client.table("rapports").insert(data).execute()
+    print(f"✅ Rapport sauvegardé dans Supabase — ID: {result.data[0]['id'] if result.data else 'N/A'}")
+    return result
 
-# ============================================================
-# CALLBACKS
-# ============================================================
-def callback_analyse(output):
-    resultats["analyse"] = str(output.raw) if hasattr(output, 'raw') else str(output)
-    print("✅ Analyse capturée !")
+# ─────────────────────────────────────────
+# ENVOI EMAIL GMAIL
+# ─────────────────────────────────────────
 
-def callback_prospection(output):
-    resultats["prospects"] = str(output.raw) if hasattr(output, 'raw') else str(output)
-    print("✅ Prospects capturés !")
+def envoyer_email_rapport(niche, analyse, prospects, email_vente, plan_90j):
+    if not GMAIL_PASSWORD:
+        print("⚠️  GMAIL_PASSWORD non configuré — email ignoré")
+        return
 
-def callback_marketing(output):
-    resultats["marketing"] = str(output.raw) if hasattr(output, 'raw') else str(output)
-    print("✅ Marketing capturé !")
+    sujet = f"🤖 Rapport IA — Niche : {niche} | {datetime.date.today()}"
+    corps = f"""
+=== RAPPORT BUSINESS IA ===
+Niche : {niche}
+Date  : {datetime.date.today()}
 
-def callback_ops(output):
-    resultats["ops"] = str(output.raw) if hasattr(output, 'raw') else str(output)
-    print("✅ Plan ops capturé !")
-
-# ============================================================
-# LES 4 AGENTS
-# ============================================================
-analyste = Agent(
-    role="Analyste de Marché Expert",
-    goal="Identifier la meilleure niche business pour maximiser les revenus",
-    backstory="Expert en analyse de marché avec 15 ans d'expérience.",
-    llm=MODELE, verbose=True
-)
-
-prospecteur = Agent(
-    role="Expert en Prospection Commerciale",
-    goal="Trouver 5 prospects de secteurs DIFFÉRENTS (ex: restauration, immobilier, santé, e-commerce, industrie) avec nom, email, téléphone, secteur et budget",
-    backstory="Chasseur de clients avec 10 ans d'expérience.",
-    llm=MODELE, verbose=True
-)
-
-marketeur = Agent(
-    role="Expert Marketing et Copywriting",
-    goal="Créer des emails de vente complets et percutants",
-    backstory="Expert en marketing digital et copywriting.",
-    llm=MODELE, verbose=True
-)
-
-ops_manager = Agent(
-    role="Operations Manager et Stratège Business",
-    goal="Créer un plan d'action béton avec des KPIs mesurables",
-    backstory="Expert en lancement de startups.",
-    llm=MODELE, verbose=True
-)
-
-# ============================================================
-# LES 4 TÂCHES
-# ============================================================
-tache_analyse = Task(
-    description="""Analyse le marché des services IA pour tous types d'entreprises : startups, PME, grandes entreprises, commerces, restaurants, agences, cabinets, etc.
-    Réponds avec ce format EXACT :
-    NICHE: [niche choisie]
-    REVENUS: [revenus potentiels par mois en euros]
-    BUDGET: [budget démarrage]
-    CONCURRENTS: [3 concurrents]
-    POURQUOI: [raison du choix]""",
-    expected_output="Analyse avec NICHE, REVENUS, BUDGET, CONCURRENTS, POURQUOI",
-    agent=analyste,
-    callback=callback_analyse
-)
-
-tache_prospection = Task(
-    description="""Crée une liste de 5 prospects idéaux pour vendre des agents IA.
-    Format EXACT pour chaque prospect :
-    PROSPECT 1:
-    - Nom entreprise: [nom]
-    - Secteur: [secteur]
-    - Problème: [problème principal]
-    - Email: [email]
-    - Téléphone: [téléphone]
-    - Budget: [budget estimé]
-    PROSPECT 2: [même format]
-    ... jusqu'à PROSPECT 5""",
-    expected_output="5 prospects complets avec nom, secteur, email, téléphone, budget",
-    agent=prospecteur,
-    callback=callback_prospection
-)
-
-tache_marketing = Task(
-    description="""Crée 2 emails de vente professionnels.
-    Format EXACT :
-    EMAIL 1 - PREMIER CONTACT:
-    Objet: [objet]
-    Corps: [email complet]
-    ---
-    EMAIL 2 - RELANCE:
-    Objet: [objet]
-    Corps: [email complet]""",
-    expected_output="2 emails complets avec objet et corps",
-    agent=marketeur,
-    callback=callback_marketing
-)
-
-tache_ops = Task(
-    description="""Crée le plan 90 jours et les KPIs.
-    Format EXACT :
-    PLAN 30 JOURS: [liste des actions mois 1]
-    PLAN 60 JOURS: [liste des actions mois 2]
-    PLAN 90 JOURS: [liste des actions mois 3]
-    KPIS:
-    - Revenu cible mois 1: [montant]
-    - Revenu cible mois 3: [montant]
-    - Nombre clients cible: [nombre]
-    - Taux conversion cible: [pourcentage]""",
-    expected_output="Plan 90 jours + KPIs structurés",
-    agent=ops_manager,
-    callback=callback_ops
-)
-
-# ============================================================
-# LANCEMENT DES AGENTS
-# ============================================================
-print("🚀 Lancement des agents IA...")
-print("=" * 50)
-
-crew = Crew(
-    agents=[analyste, prospecteur, marketeur, ops_manager],
-    tasks=[tache_analyse, tache_prospection, tache_marketing, tache_ops],
-    process=Process.sequential,
-    verbose=True
-)
-
-crew.kickoff()
-
-# ============================================================
-# EXTRACTION ET ENVOI
-# ============================================================
-analyse = resultats.get("analyse", "")
-prospects = resultats.get("prospects", "")
-marketing = resultats.get("marketing", "")
-ops = resultats.get("ops", "")
-
-niche = ""
-revenus = ""
-for ligne in analyse.split("\n"):
-    if ligne.strip().startswith("NICHE:"):
-        niche = ligne.replace("NICHE:", "").strip()
-    if ligne.strip().startswith("REVENUS:"):
-        revenus = ligne.replace("REVENUS:", "").strip()
-
-rapport_final = f"""
-{'='*60}
-RAPPORT BUSINESS IA — {datetime.now().strftime('%d/%m/%Y à %H:%M')}
-{'='*60}
-
-== ANALYSE DE MARCHÉ ==
+📊 ANALYSE MARCHÉ
 {analyse}
 
-== PROSPECTS ==
+👥 PROSPECTS GÉNÉRÉS
 {prospects}
 
-== MARKETING ==
-{marketing}
+📧 EMAIL DE VENTE
+{email_vente}
 
-== PLAN 90 JOURS & KPIs ==
-{ops}
-{'='*60}
+📅 PLAN 90 JOURS
+{plan_90j}
 """
+    msg = MIMEMultipart()
+    msg["From"]    = GMAIL_USER
+    msg["To"]      = GMAIL_USER
+    msg["Subject"] = sujet
+    msg.attach(MIMEText(corps, "plain", "utf-8"))
 
-# Sauvegarder en local
-with open("rapport_business.txt", "w", encoding="utf-8") as f:
-    f.write(rapport_final)
-print("\n✅ Rapport sauvegardé : rapport_business.txt")
+    try:
+        with smtplib.SMTP_SSL("smtp.gmail.com", 465) as server:
+            server.login(GMAIL_USER, GMAIL_PASSWORD)
+            server.sendmail(GMAIL_USER, GMAIL_USER, msg.as_string())
+        print(f"✅ Email envoyé à {GMAIL_USER}")
+    except Exception as e:
+        print(f"❌ Erreur envoi email : {e}")
 
-# Envoyer dans Supabase
-print("\n📤 Envoi dans Supabase...")
-envoyer_rapport_supabase({
-    "contenu": rapport_final,
-    "niche": niche,
-    "revenus_estimes": revenus,
-    "prospects": prospects,
-    "emails_vente": marketing,
-    "plan_90_jours": ops,
-    "kpis": ops,
-    "date_creation": datetime.utcnow().isoformat()
-})
+# ─────────────────────────────────────────
+# PIPELINE PRINCIPAL
+# ─────────────────────────────────────────
 
-# Envoyer par email
-print("\n📧 Envoi par email...")
-envoyer_email(rapport_final)
+def lancer_pipeline(niche: str):
+    print(f"\n🚀 Lancement du pipeline pour la niche : {niche}")
+    print("─" * 50)
 
-print("\n🎉 Tout est terminé !")
+    print("🔍 Agent 1 — Analyse de marché...")
+    analyse = agent_analyse_marche(niche)
+
+    print("👥 Agent 2 — Génération de prospects...")
+    prospects = agent_generation_prospects(niche, analyse)
+
+    print("📧 Agent 3 — Rédaction email de vente...")
+    email_vente = agent_email_vente(niche, analyse)
+
+    print("📅 Agent 4 — Plan 90 jours...")
+    plan_90j = agent_plan_90_jours(niche)
+
+    print("💾 Sauvegarde dans Supabase...")
+    sauvegarder_rapport(niche, analyse, prospects, email_vente, plan_90j)
+
+    print("📬 Envoi email de rapport...")
+    envoyer_email_rapport(niche, analyse, prospects, email_vente, plan_90j)
+
+    print(f"\n✅ Pipeline terminé pour : {niche}")
+    return {
+        "niche":      niche,
+        "analyse":    analyse,
+        "prospects":  prospects,
+        "email":      email_vente,
+        "plan_90j":   plan_90j,
+    }
+
+# ─────────────────────────────────────────
+# NICHES À TRAITER
+# ─────────────────────────────────────────
+
+NICHES = [
+    "Agences immobilières",
+    "Cabinets de comptabilité",
+    "Coaches et consultants indépendants",
+]
+
+if __name__ == "__main__":
+    for niche in NICHES:
+        try:
+            lancer_pipeline(niche)
+        except Exception as e:
+            print(f"❌ Erreur sur la niche '{niche}' : {e}")
