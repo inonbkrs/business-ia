@@ -18,12 +18,31 @@ GMAIL_USER     = os.environ.get("GMAIL_USER", "inonbkrs@gmail.com")
 GMAIL_PASSWORD = os.environ.get("GMAIL_PASSWORD")
 GROQ_MODEL     = "llama-3.3-70b-versatile"
 
-# ⚠️ MODE TEST : tous les emails sont redirigés vers ton adresse
-# Quand tu auras de vrais prospects, mets MODE_TEST = False
+# ⚠️ MODE TEST : tous les emails arrivent dans ta Gmail
+# Mets False quand tu as de vrais prospects
 MODE_TEST = True
+
+# 📊 LIMITES ANTI-SPAM
+MAX_PROSPECTS_PAR_NICHE = 3   # 3 emails par jour max
+NICHES = [
+    "Agences immobilières",
+    "Cabinets de comptabilité",
+    "Coaches et consultants indépendants",
+]
 
 groq_client     = Groq(api_key=GROQ_API_KEY)
 supabase_client = create_client(SUPABASE_URL, SUPABASE_KEY)
+
+# ─────────────────────────────────────────
+# SÉLECTION DE LA NICHE DU JOUR
+# Rotation automatique : lundi=niche1, mardi=niche2, etc.
+# ─────────────────────────────────────────
+def get_niche_du_jour() -> str:
+    jour = datetime.datetime.utcnow().weekday()  # 0=lundi, 1=mardi...
+    index = jour % len(NICHES)
+    niche = NICHES[index]
+    print(f"📅 Niche du jour (jour {jour}) : {niche}")
+    return niche
 
 # ─────────────────────────────────────────
 # FONCTION LLM
@@ -57,7 +76,7 @@ def agent_generation_prospects(niche: str, analyse: str) -> str:
 Tu es un expert en génération de leads B2B. Niche : {niche}.
 Contexte marché : {analyse[:500]}
 
-Génère 5 profils de prospects idéaux.
+Génère exactement {MAX_PROSPECTS_PAR_NICHE} profils de prospects idéaux.
 IMPORTANT : Réponds UNIQUEMENT avec un tableau JSON valide, sans texte avant ou après.
 Format exact :
 [
@@ -155,8 +174,7 @@ def agent_evolution(niche: str, rapport_actuel: dict) -> str:
 
     prompt = f"""
 Tu es un agent d'évolution et d'optimisation business.
-Niche : {niche}
-Historique : {contexte_historique}
+Niche : {niche} | Historique : {contexte_historique}
 
 Rapport actuel :
 - Analyse : {rapport_actuel.get('analyse', '')[:400]}
@@ -173,43 +191,32 @@ Réponds en français, structuré et actionnable.
     return groq_llm(prompt)
 
 # ─────────────────────────────────────────
-# EXTRACTION DES PROSPECTS DU JSON
+# AGENT 7 — ENVOI EMAILS AUX PROSPECTS 📧
 # ─────────────────────────────────────────
 def extraire_prospects(prospects_json: str) -> list:
-    """Extrait la liste de prospects depuis le JSON généré par l'Agent 2."""
     try:
-        # Chercher un tableau JSON dans le texte
         match = re.search(r'\[.*\]', prospects_json, re.DOTALL)
         if match:
-            data = json.loads(match.group())
-            return data
+            return json.loads(match.group())
     except Exception as e:
         print(f"⚠️  Impossible de parser les prospects JSON : {e}")
     return []
 
-# ─────────────────────────────────────────
-# AGENT 4 — ENVOI EMAIL AUX PROSPECTS 📧
-# ─────────────────────────────────────────
 def agent_envoi_prospects(niche: str, prospects_json: str, email_vente_template: str):
-    """
-    Envoie un email personnalisé à chaque prospect généré.
-    En MODE_TEST, tous les emails sont redirigés vers GMAIL_USER.
-    """
     if not GMAIL_PASSWORD:
-        print("⚠️  GMAIL_PASSWORD non configuré — envoi prospects ignoré")
+        print("⚠️  GMAIL_PASSWORD non configuré — envoi ignoré")
         return
 
-    prospects = extraire_prospects(prospects_json)
+    prospects = extraire_prospects(prospects_json)[:MAX_PROSPECTS_PAR_NICHE]
 
     if not prospects:
         print("⚠️  Aucun prospect extrait — envoi ignoré")
         return
 
-    print(f"📧 Envoi aux prospects ({len(prospects)} contacts)...")
+    print(f"📧 Envoi à {len(prospects)} prospect(s) pour : {niche}")
 
     for i, prospect in enumerate(prospects, 1):
         prenom     = prospect.get("prenom", "")
-        nom        = prospect.get("nom", "")
         entreprise = prospect.get("entreprise", "")
         probleme   = prospect.get("probleme", "")
         email_dest = prospect.get("email", "")
@@ -217,75 +224,69 @@ def agent_envoi_prospects(niche: str, prospects_json: str, email_vente_template:
         if not email_dest:
             continue
 
-        # Générer un email personnalisé pour ce prospect
+        # Email personnalisé pour ce prospect
         prompt_perso = f"""
-Tu es un expert en cold email B2B.
-Personnalise cet email de vente pour ce prospect spécifique :
+Personnalise cet email de vente pour ce prospect :
+Prénom : {prenom} | Entreprise : {entreprise} | Problème : {probleme} | Niche : {niche}
 
-Prénom : {prenom}
-Entreprise : {entreprise}
-Problème principal : {probleme}
-Niche : {niche}
-
-Template de base :
+Template :
 {email_vente_template}
 
-Réécris l'email en intégrant naturellement le prénom, l'entreprise et le problème spécifique.
-Garde-le court (150 mots max). Réponds UNIQUEMENT avec l'email (objet + corps).
+Réécris l'email en intégrant naturellement le prénom, l'entreprise et le problème.
+150 mots max. Réponds UNIQUEMENT avec l'email (objet + corps).
 """
         email_perso = groq_llm(prompt_perso)
 
-        # Extraire l'objet
         lignes = email_perso.strip().split('\n')
         objet = f"Une solution IA pour {entreprise}"
         corps = email_perso
 
         for ligne in lignes[:3]:
-            if "objet" in ligne.lower() or "subject" in ligne.lower() or ligne.startswith("Objet"):
+            if "objet" in ligne.lower() or ligne.startswith("Objet"):
                 objet = ligne.split(":", 1)[-1].strip()
                 corps = "\n".join(lignes[1:]).strip()
                 break
 
-        # En mode test → rediriger vers ton email
         destinataire = GMAIL_USER if MODE_TEST else email_dest
 
         msg = MIMEMultipart()
         msg["From"]    = GMAIL_USER
         msg["To"]      = destinataire
-        msg["Subject"] = f"[TEST - {email_dest}] {objet}" if MODE_TEST else objet
+        msg["Subject"] = f"[TEST → {email_dest}] {objet}" if MODE_TEST else objet
         msg.attach(MIMEText(corps, "plain", "utf-8"))
 
         try:
             with smtplib.SMTP_SSL("smtp.gmail.com", 465) as server:
                 server.login(GMAIL_USER, GMAIL_PASSWORD)
                 server.sendmail(GMAIL_USER, destinataire, msg.as_string())
-            print(f"   ✅ [{i}/{len(prospects)}] Email envoyé → {email_dest} ({entreprise})")
+            print(f"   ✅ [{i}/{len(prospects)}] → {email_dest} ({entreprise})")
         except Exception as e:
-            print(f"   ❌ [{i}/{len(prospects)}] Erreur pour {email_dest} : {e}")
+            print(f"   ❌ [{i}/{len(prospects)}] Erreur {email_dest} : {e}")
 
 # ─────────────────────────────────────────
-# ENVOI EMAIL — RAPPORT COMPLET
+# ENVOI RAPPORT COMPLET
 # ─────────────────────────────────────────
 def envoyer_email_rapport(niche, rapport, defaillance, evolution):
     if not GMAIL_PASSWORD:
-        print("⚠️  GMAIL_PASSWORD non configuré — email rapport ignoré")
         return
 
     niveau = defaillance.get("niveau_alerte", "VERT")
-    emoji_alerte = {"VERT": "✅", "ORANGE": "⚠️", "ROUGE": "🚨"}.get(niveau, "✅")
+    emoji  = {"VERT": "✅", "ORANGE": "⚠️", "ROUGE": "🚨"}.get(niveau, "✅")
 
-    sujet = f"{emoji_alerte} Rapport IA — {niche} | {datetime.date.today()} | Alerte : {niveau}"
+    msg = MIMEMultipart()
+    msg["From"]    = GMAIL_USER
+    msg["To"]      = GMAIL_USER
+    msg["Subject"] = f"{emoji} Rapport IA — {niche} | {datetime.date.today()} | {niveau}"
     corps = f"""
 ╔══════════════════════════════════════╗
-   RAPPORT BUSINESS IA AUTOMATISÉ
-   Niche : {niche}
-   Date  : {datetime.date.today()}
+   RAPPORT BUSINESS IA — {niche}
+   Date : {datetime.date.today()}
 ╚══════════════════════════════════════╝
 
 📊 ANALYSE MARCHÉ
 {rapport.get('analyse', '')}
 
-👥 PROSPECTS GÉNÉRÉS
+👥 PROSPECTS ({MAX_PROSPECTS_PAR_NICHE} contacts)
 {rapport.get('prospects', '')}
 
 📧 EMAIL DE VENTE (template)
@@ -294,32 +295,24 @@ def envoyer_email_rapport(niche, rapport, defaillance, evolution):
 📅 PLAN 90 JOURS
 {rapport.get('plan_90j', '')}
 
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-
-🚨 AGENT DÉFAILLANCE — Niveau : {niveau}
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+🚨 AGENT DÉFAILLANCE — {niveau}
 {defaillance.get('analyse', '')}
 
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-
-📈 AGENT ÉVOLUTION — Recommandations
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+📈 AGENT ÉVOLUTION
 {evolution}
-
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-Généré automatiquement par Business IA System
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+Business IA System — {datetime.date.today()}
 """
-    msg = MIMEMultipart()
-    msg["From"]    = GMAIL_USER
-    msg["To"]      = GMAIL_USER
-    msg["Subject"] = sujet
     msg.attach(MIMEText(corps, "plain", "utf-8"))
-
     try:
         with smtplib.SMTP_SSL("smtp.gmail.com", 465) as server:
             server.login(GMAIL_USER, GMAIL_PASSWORD)
             server.sendmail(GMAIL_USER, GMAIL_USER, msg.as_string())
-        print(f"✅ Rapport principal envoyé — Alerte : {niveau}")
+        print(f"✅ Rapport envoyé — Alerte : {niveau}")
     except Exception as e:
-        print(f"❌ Erreur envoi rapport : {e}")
+        print(f"❌ Erreur rapport : {e}")
 
 # ─────────────────────────────────────────
 # SAUVEGARDE SUPABASE
@@ -336,19 +329,19 @@ def sauvegarder_rapport(niche, rapport, defaillance, evolution):
         "date_creation":   datetime.datetime.utcnow().isoformat(),
     }
     result = supabase_client.table("rapports").insert(data).execute()
-    print(f"✅ Sauvegardé Supabase — ID: {result.data[0]['id'] if result.data else 'N/A'}")
+    print(f"✅ Supabase — ID: {result.data[0]['id'] if result.data else 'N/A'}")
 
 # ─────────────────────────────────────────
 # PIPELINE PRINCIPAL
 # ─────────────────────────────────────────
 def lancer_pipeline(niche: str):
-    print(f"\n🚀 Pipeline lancé pour : {niche}")
+    print(f"\n🚀 Pipeline : {niche}")
     print("─" * 50)
 
-    print("🔍 Agent 1 — Analyse de marché...")
+    print("🔍 Agent 1 — Analyse marché...")
     analyse = agent_analyse_marche(niche)
 
-    print("👥 Agent 2 — Génération de prospects...")
+    print("👥 Agent 2 — Génération prospects...")
     prospects = agent_generation_prospects(niche, analyse)
 
     print("📧 Agent 3 — Email de vente...")
@@ -364,41 +357,36 @@ def lancer_pipeline(niche: str):
         "plan_90j":  plan_90j,
     }
 
-    print("🚨 Agent 5 — Détection défaillances...")
+    print("🚨 Agent 5 — Défaillances...")
     defaillance = agent_defaillance(niche, rapport)
-    print(f"   → Niveau alerte : {defaillance['niveau_alerte']}")
+    print(f"   → Alerte : {defaillance['niveau_alerte']}")
 
-    print("📈 Agent 6 — Analyse évolution...")
+    print("📈 Agent 6 — Évolution...")
     evolution = agent_evolution(niche, rapport)
 
-    print("📬 Agent 7 — Envoi emails aux prospects...")
+    print(f"📬 Agent 7 — Envoi aux {MAX_PROSPECTS_PAR_NICHE} prospects...")
     agent_envoi_prospects(niche, prospects, email_vente)
 
     print("💾 Sauvegarde Supabase...")
     sauvegarder_rapport(niche, rapport, defaillance, evolution)
 
-    print("📨 Envoi rapport complet...")
+    print("📨 Rapport complet...")
     envoyer_email_rapport(niche, rapport, defaillance, evolution)
 
-    print(f"✅ Pipeline terminé pour : {niche}\n")
+    print(f"✅ Terminé : {niche}\n")
 
 # ─────────────────────────────────────────
-# NICHES À TRAITER
+# LANCEMENT — 1 NICHE PAR JOUR
 # ─────────────────────────────────────────
-NICHES = [
-    "Agences immobilières",
-    "Cabinets de comptabilité",
-    "Coaches et consultants indépendants",
-]
-
 if __name__ == "__main__":
     mode = "TEST" if MODE_TEST else "PRODUCTION"
     print(f"\n{'='*50}")
     print(f"  BUSINESS IA SYSTEM — Mode : {mode}")
+    print(f"  {datetime.date.today()} — 3 emails max aujourd'hui")
     print(f"{'='*50}")
 
-    for niche in NICHES:
-        try:
-            lancer_pipeline(niche)
-        except Exception as e:
-            print(f"❌ Erreur sur '{niche}' : {e}")
+    niche_du_jour = get_niche_du_jour()
+    try:
+        lancer_pipeline(niche_du_jour)
+    except Exception as e:
+        print(f"❌ Erreur : {e}")
