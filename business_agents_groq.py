@@ -3,26 +3,24 @@ import smtplib
 import datetime
 from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
-from crewai import Agent, Task, Crew, Process
 from groq import Groq
 from supabase import create_client
 
 # ─────────────────────────────────────────
-# CONFIGURATION — clés depuis les variables d'environnement
+# CONFIGURATION
 # ─────────────────────────────────────────
-GROQ_API_KEY    = os.environ.get("GROQ_API_KEY")
-SUPABASE_URL    = os.environ.get("SUPABASE_URL")
-SUPABASE_KEY    = os.environ.get("SUPABASE_KEY")
-GMAIL_USER      = os.environ.get("GMAIL_USER", "inonbkrs@gmail.com")
-GMAIL_PASSWORD  = os.environ.get("GMAIL_PASSWORD")
-GROQ_MODEL      = "llama-3.3-70b-versatile"
+GROQ_API_KEY   = os.environ.get("GROQ_API_KEY")
+SUPABASE_URL   = os.environ.get("SUPABASE_URL")
+SUPABASE_KEY   = os.environ.get("SUPABASE_KEY")
+GMAIL_USER     = os.environ.get("GMAIL_USER", "inonbkrs@gmail.com")
+GMAIL_PASSWORD = os.environ.get("GMAIL_PASSWORD")
+GROQ_MODEL     = "llama-3.3-70b-versatile"
 
-# Clients
 groq_client     = Groq(api_key=GROQ_API_KEY)
 supabase_client = create_client(SUPABASE_URL, SUPABASE_KEY)
 
 # ─────────────────────────────────────────
-# FONCTION LLM via Groq
+# FONCTION LLM
 # ─────────────────────────────────────────
 def groq_llm(prompt: str) -> str:
     response = groq_client.chat.completions.create(
@@ -34,9 +32,8 @@ def groq_llm(prompt: str) -> str:
     return response.choices[0].message.content.strip()
 
 # ─────────────────────────────────────────
-# AGENTS
+# AGENTS DE BASE (4 agents originaux)
 # ─────────────────────────────────────────
-
 def agent_analyse_marche(niche: str) -> str:
     prompt = f"""
 Tu es un expert en analyse de marché. Analyse la niche suivante : {niche}.
@@ -83,7 +80,7 @@ def agent_plan_90_jours(niche: str) -> str:
 Tu es un consultant business. Crée un plan d'action 90 jours pour lancer une offre IA dans la niche : {niche}.
 Structure :
 - Mois 1 : Fondations (semaines 1-4)
-- Mois 2 : Lancement (semaines 5-8)  
+- Mois 2 : Lancement (semaines 5-8)
 - Mois 3 : Croissance (semaines 9-12)
 KPIs à suivre chaque semaine.
 Sois concret et actionnable.
@@ -91,50 +88,122 @@ Sois concret et actionnable.
     return groq_llm(prompt)
 
 # ─────────────────────────────────────────
-# SAUVEGARDE SUPABASE
+# AGENT 5 — DÉFAILLANCE 🚨
+# Détecte les problèmes et envoie une alerte
 # ─────────────────────────────────────────
+def agent_defaillance(niche: str, rapport: dict) -> dict:
+    prompt = f"""
+Tu es un agent de contrôle qualité pour un système business automatisé.
+Niche analysée : {niche}
 
-def sauvegarder_rapport(niche, analyse, prospects, email_vente, plan_90j):
-    data = {
-        "niche":           niche,
-        "contenu":         analyse,
-        "revenus_estimes": "5 000 – 15 000 € / mois",
-        "prospects":       prospects,
-        "emails_vente":    email_vente,
-        "plan_90_jours":   plan_90j,
-        "kpis":            "CA mensuel, leads contactés, taux de réponse, contrats signés",
-        "date_creation":   datetime.datetime.utcnow().isoformat(),
+Voici le rapport généré :
+- Analyse marché : {rapport.get('analyse', '')[:400]}
+- Prospects générés : {rapport.get('prospects', '')[:300]}
+- Email de vente : {rapport.get('email', '')[:300]}
+- Plan 90 jours : {rapport.get('plan_90j', '')[:300]}
+
+Évalue ce rapport et détecte les défaillances potentielles :
+1. Score de santé global (0 à 100)
+2. Liste des problèmes détectés (vague, incomplet, irréaliste, etc.)
+3. Niveau d'alerte : VERT (tout va bien) / ORANGE (attention) / ROUGE (action requise)
+4. Actions correctives recommandées
+
+Réponds en français, de façon structurée et concise.
+"""
+    analyse_defaillance = groq_llm(prompt)
+
+    alerte = "VERT"
+    if "ROUGE" in analyse_defaillance.upper():
+        alerte = "ROUGE"
+    elif "ORANGE" in analyse_defaillance.upper():
+        alerte = "ORANGE"
+
+    return {
+        "analyse": analyse_defaillance,
+        "niveau_alerte": alerte,
+        "niche": niche,
+        "timestamp": datetime.datetime.utcnow().isoformat()
     }
-    result = supabase_client.table("rapports").insert(data).execute()
-    print(f"✅ Rapport sauvegardé dans Supabase — ID: {result.data[0]['id'] if result.data else 'N/A'}")
-    return result
 
 # ─────────────────────────────────────────
-# ENVOI EMAIL GMAIL
+# AGENT 6 — ÉVOLUTION 📈
+# Analyse l'historique et propose des améliorations
 # ─────────────────────────────────────────
+def agent_evolution(niche: str, rapport_actuel: dict) -> str:
+    try:
+        historique = supabase_client.table("rapports") \
+            .select("contenu, date_creation, kpis") \
+            .eq("niche", niche) \
+            .order("date_creation", desc=True) \
+            .limit(5) \
+            .execute()
+        nb_rapports = len(historique.data) if historique.data else 0
+        contexte_historique = f"{nb_rapports} rapport(s) précédent(s) trouvé(s) pour cette niche."
+    except Exception:
+        contexte_historique = "Pas d'historique disponible (premier rapport)."
 
-def envoyer_email_rapport(niche, analyse, prospects, email_vente, plan_90j):
+    prompt = f"""
+Tu es un agent d'évolution et d'optimisation business.
+Niche : {niche}
+Historique : {contexte_historique}
+
+Rapport actuel :
+- Analyse : {rapport_actuel.get('analyse', '')[:400]}
+- Email vente : {rapport_actuel.get('email', '')[:300]}
+
+Propose :
+1. 3 axes d'amélioration concrets pour le prochain rapport
+2. De nouvelles niches connexes à explorer
+3. Une stratégie pour augmenter les revenus estimés
+4. Un message de motivation pour l'entrepreneur (court, impactant)
+
+Réponds en français, de façon structurée et actionnable.
+"""
+    return groq_llm(prompt)
+
+# ─────────────────────────────────────────
+# ENVOI EMAIL — RAPPORT COMPLET
+# ─────────────────────────────────────────
+def envoyer_email_rapport(niche, rapport, defaillance, evolution):
     if not GMAIL_PASSWORD:
         print("⚠️  GMAIL_PASSWORD non configuré — email ignoré")
         return
 
-    sujet = f"🤖 Rapport IA — Niche : {niche} | {datetime.date.today()}"
+    niveau = defaillance.get("niveau_alerte", "VERT")
+    emoji_alerte = {"VERT": "✅", "ORANGE": "⚠️", "ROUGE": "🚨"}.get(niveau, "✅")
+
+    sujet = f"{emoji_alerte} Rapport IA — {niche} | {datetime.date.today()} | Alerte : {niveau}"
     corps = f"""
-=== RAPPORT BUSINESS IA ===
-Niche : {niche}
-Date  : {datetime.date.today()}
+╔══════════════════════════════════════╗
+   RAPPORT BUSINESS IA AUTOMATISÉ
+   Niche : {niche}
+   Date  : {datetime.date.today()}
+╚══════════════════════════════════════╝
 
 📊 ANALYSE MARCHÉ
-{analyse}
+{rapport.get('analyse', '')}
 
 👥 PROSPECTS GÉNÉRÉS
-{prospects}
+{rapport.get('prospects', '')}
 
 📧 EMAIL DE VENTE
-{email_vente}
+{rapport.get('email', '')}
 
 📅 PLAN 90 JOURS
-{plan_90j}
+{rapport.get('plan_90j', '')}
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+🚨 AGENT DÉFAILLANCE — Niveau : {niveau}
+{defaillance.get('analyse', '')}
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+📈 AGENT ÉVOLUTION — Recommandations
+{evolution}
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+Généré automatiquement par Business IA System
 """
     msg = MIMEMultipart()
     msg["From"]    = GMAIL_USER
@@ -146,16 +215,32 @@ Date  : {datetime.date.today()}
         with smtplib.SMTP_SSL("smtp.gmail.com", 465) as server:
             server.login(GMAIL_USER, GMAIL_PASSWORD)
             server.sendmail(GMAIL_USER, GMAIL_USER, msg.as_string())
-        print(f"✅ Email envoyé à {GMAIL_USER}")
+        print(f"✅ Email envoyé — Alerte : {niveau}")
     except Exception as e:
         print(f"❌ Erreur envoi email : {e}")
 
 # ─────────────────────────────────────────
+# SAUVEGARDE SUPABASE
+# ─────────────────────────────────────────
+def sauvegarder_rapport(niche, rapport, defaillance, evolution):
+    data = {
+        "niche":           niche,
+        "contenu":         rapport.get("analyse", ""),
+        "revenus_estimes": "5 000 – 15 000 € / mois",
+        "prospects":       rapport.get("prospects", ""),
+        "emails_vente":    rapport.get("email", ""),
+        "plan_90_jours":   rapport.get("plan_90j", ""),
+        "kpis":            f"Alerte: {defaillance.get('niveau_alerte','VERT')} | {evolution[:200]}",
+        "date_creation":   datetime.datetime.utcnow().isoformat(),
+    }
+    result = supabase_client.table("rapports").insert(data).execute()
+    print(f"✅ Sauvegardé dans Supabase — ID: {result.data[0]['id'] if result.data else 'N/A'}")
+
+# ─────────────────────────────────────────
 # PIPELINE PRINCIPAL
 # ─────────────────────────────────────────
-
 def lancer_pipeline(niche: str):
-    print(f"\n🚀 Lancement du pipeline pour la niche : {niche}")
+    print(f"\n🚀 Pipeline lancé pour : {niche}")
     print("─" * 50)
 
     print("🔍 Agent 1 — Analyse de marché...")
@@ -164,31 +249,37 @@ def lancer_pipeline(niche: str):
     print("👥 Agent 2 — Génération de prospects...")
     prospects = agent_generation_prospects(niche, analyse)
 
-    print("📧 Agent 3 — Rédaction email de vente...")
+    print("📧 Agent 3 — Email de vente...")
     email_vente = agent_email_vente(niche, analyse)
 
     print("📅 Agent 4 — Plan 90 jours...")
     plan_90j = agent_plan_90_jours(niche)
 
-    print("💾 Sauvegarde dans Supabase...")
-    sauvegarder_rapport(niche, analyse, prospects, email_vente, plan_90j)
-
-    print("📬 Envoi email de rapport...")
-    envoyer_email_rapport(niche, analyse, prospects, email_vente, plan_90j)
-
-    print(f"\n✅ Pipeline terminé pour : {niche}")
-    return {
-        "niche":      niche,
-        "analyse":    analyse,
-        "prospects":  prospects,
-        "email":      email_vente,
-        "plan_90j":   plan_90j,
+    rapport = {
+        "analyse":   analyse,
+        "prospects": prospects,
+        "email":     email_vente,
+        "plan_90j":  plan_90j,
     }
+
+    print("🚨 Agent 5 — Détection défaillances...")
+    defaillance = agent_defaillance(niche, rapport)
+    print(f"   → Niveau alerte : {defaillance['niveau_alerte']}")
+
+    print("📈 Agent 6 — Analyse évolution...")
+    evolution = agent_evolution(niche, rapport)
+
+    print("💾 Sauvegarde Supabase...")
+    sauvegarder_rapport(niche, rapport, defaillance, evolution)
+
+    print("📬 Envoi email rapport complet...")
+    envoyer_email_rapport(niche, rapport, defaillance, evolution)
+
+    print(f"✅ Pipeline terminé pour : {niche}\n")
 
 # ─────────────────────────────────────────
 # NICHES À TRAITER
 # ─────────────────────────────────────────
-
 NICHES = [
     "Agences immobilières",
     "Cabinets de comptabilité",
@@ -200,4 +291,4 @@ if __name__ == "__main__":
         try:
             lancer_pipeline(niche)
         except Exception as e:
-            print(f"❌ Erreur sur la niche '{niche}' : {e}")
+            print(f"❌ Erreur sur '{niche}' : {e}")
