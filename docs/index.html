@@ -1,0 +1,698 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Nexivo — Automatisation IA pour votre croissance</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&display=swap" rel="stylesheet" />
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --bg:        #0A0B0E;
+      --bg2:       #0F1117;
+      --bg3:       #161B27;
+      --blue:      #00D4FF;
+      --blue2:     #0066FF;
+      --blue-dim:  rgba(0, 212, 255, 0.12);
+      --blue-glow: 0 0 40px rgba(0, 212, 255, 0.25);
+      --white:     #FFFFFF;
+      --gray:      #8892A4;
+      --border:    rgba(255,255,255,0.08);
+    }
+
+    html { scroll-behavior: smooth; }
+
+    body {
+      font-family: 'Inter', sans-serif;
+      background: var(--bg);
+      color: var(--white);
+      line-height: 1.6;
+      overflow-x: hidden;
+    }
+
+    /* ── GRID BG ── */
+    body::before {
+      content: '';
+      position: fixed;
+      inset: 0;
+      background-image:
+        linear-gradient(rgba(0,212,255,0.04) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(0,212,255,0.04) 1px, transparent 1px);
+      background-size: 60px 60px;
+      pointer-events: none;
+      z-index: 0;
+    }
+
+    section, nav, footer { position: relative; z-index: 1; }
+
+    /* ── NAV ── */
+    nav {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 20px 6%;
+      border-bottom: 1px solid var(--border);
+      position: sticky;
+      top: 0;
+      background: rgba(10,11,14,0.85);
+      backdrop-filter: blur(12px);
+      z-index: 100;
+    }
+
+    .logo {
+      font-size: 1.5rem;
+      font-weight: 800;
+      background: linear-gradient(135deg, var(--blue), var(--blue2));
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      letter-spacing: -0.5px;
+    }
+
+    .nav-links { display: flex; gap: 32px; align-items: center; }
+    .nav-links a {
+      color: var(--gray);
+      text-decoration: none;
+      font-size: 0.9rem;
+      font-weight: 500;
+      transition: color 0.2s;
+    }
+    .nav-links a:hover { color: var(--white); }
+
+    /* ── BUTTONS ── */
+    .btn {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      padding: 12px 24px;
+      border-radius: 8px;
+      font-weight: 600;
+      font-size: 0.9rem;
+      cursor: pointer;
+      text-decoration: none;
+      transition: all 0.2s;
+      border: none;
+    }
+
+    .btn-primary {
+      background: linear-gradient(135deg, var(--blue2), var(--blue));
+      color: var(--bg);
+      box-shadow: 0 4px 20px rgba(0,102,255,0.4);
+    }
+    .btn-primary:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 8px 30px rgba(0,102,255,0.55);
+    }
+
+    .btn-outline {
+      background: transparent;
+      color: var(--blue);
+      border: 1px solid var(--blue);
+    }
+    .btn-outline:hover {
+      background: var(--blue-dim);
+      transform: translateY(-2px);
+    }
+
+    .btn-lg {
+      padding: 16px 36px;
+      font-size: 1.05rem;
+      border-radius: 10px;
+    }
+
+    /* ── HERO ── */
+    #hero {
+      min-height: 92vh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      text-align: center;
+      padding: 80px 6%;
+    }
+
+    .badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      padding: 6px 16px;
+      background: var(--blue-dim);
+      border: 1px solid rgba(0,212,255,0.25);
+      border-radius: 100px;
+      font-size: 0.82rem;
+      color: var(--blue);
+      font-weight: 600;
+      margin-bottom: 28px;
+      letter-spacing: 0.5px;
+    }
+
+    .badge-dot {
+      width: 6px;
+      height: 6px;
+      border-radius: 50%;
+      background: var(--blue);
+      animation: pulse 2s infinite;
+    }
+
+    @keyframes pulse {
+      0%, 100% { opacity: 1; transform: scale(1); }
+      50%       { opacity: 0.5; transform: scale(1.4); }
+    }
+
+    h1 {
+      font-size: clamp(2.4rem, 6vw, 4.5rem);
+      font-weight: 900;
+      line-height: 1.08;
+      letter-spacing: -2px;
+      max-width: 820px;
+      margin-bottom: 24px;
+    }
+
+    h1 span {
+      background: linear-gradient(135deg, var(--blue), var(--blue2));
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+    }
+
+    .hero-sub {
+      font-size: 1.2rem;
+      color: var(--gray);
+      max-width: 560px;
+      margin-bottom: 44px;
+      line-height: 1.7;
+    }
+
+    .hero-cta { display: flex; gap: 16px; flex-wrap: wrap; justify-content: center; }
+
+    .hero-glow {
+      position: absolute;
+      top: 10%;
+      left: 50%;
+      transform: translateX(-50%);
+      width: 600px;
+      height: 600px;
+      background: radial-gradient(ellipse, rgba(0,102,255,0.12) 0%, transparent 70%);
+      pointer-events: none;
+    }
+
+    /* ── SECTION GENERIC ── */
+    section { padding: 100px 6%; }
+
+    .section-tag {
+      display: inline-block;
+      font-size: 0.78rem;
+      font-weight: 700;
+      color: var(--blue);
+      text-transform: uppercase;
+      letter-spacing: 2px;
+      margin-bottom: 16px;
+    }
+
+    h2 {
+      font-size: clamp(2rem, 4vw, 3rem);
+      font-weight: 800;
+      letter-spacing: -1px;
+      line-height: 1.15;
+      margin-bottom: 20px;
+    }
+
+    h2 span {
+      background: linear-gradient(135deg, var(--blue), var(--blue2));
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+    }
+
+    .section-sub {
+      font-size: 1.05rem;
+      color: var(--gray);
+      max-width: 560px;
+      line-height: 1.7;
+      margin-bottom: 60px;
+    }
+
+    /* ── PROBLÈME ── */
+    #probleme { background: var(--bg2); }
+    #probleme .inner { max-width: 1100px; margin: 0 auto; }
+
+    .pain-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+      gap: 24px;
+    }
+
+    .pain-card {
+      background: var(--bg3);
+      border: 1px solid var(--border);
+      border-radius: 16px;
+      padding: 36px 32px;
+      transition: border-color 0.3s, transform 0.3s;
+    }
+
+    .pain-card:hover {
+      border-color: rgba(0,212,255,0.3);
+      transform: translateY(-4px);
+    }
+
+    .pain-icon {
+      font-size: 2.2rem;
+      margin-bottom: 16px;
+    }
+
+    .pain-card h3 {
+      font-size: 1.15rem;
+      font-weight: 700;
+      margin-bottom: 12px;
+    }
+
+    .pain-card p { color: var(--gray); font-size: 0.95rem; line-height: 1.6; }
+
+    /* ── SOLUTION ── */
+    #solution .inner { max-width: 1100px; margin: 0 auto; }
+
+    .agents-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+      gap: 20px;
+    }
+
+    .agent-card {
+      background: var(--bg2);
+      border: 1px solid var(--border);
+      border-radius: 14px;
+      padding: 28px 24px;
+      position: relative;
+      overflow: hidden;
+      transition: all 0.3s;
+    }
+
+    .agent-card::before {
+      content: '';
+      position: absolute;
+      top: 0; left: 0; right: 0;
+      height: 2px;
+      background: linear-gradient(90deg, var(--blue2), var(--blue));
+      opacity: 0;
+      transition: opacity 0.3s;
+    }
+
+    .agent-card:hover::before { opacity: 1; }
+    .agent-card:hover { border-color: rgba(0,212,255,0.2); transform: translateY(-3px); }
+
+    .agent-num {
+      font-size: 0.75rem;
+      font-weight: 700;
+      color: var(--blue);
+      letter-spacing: 1px;
+      margin-bottom: 10px;
+    }
+
+    .agent-card h3 { font-size: 1rem; font-weight: 700; margin-bottom: 8px; }
+    .agent-card p  { color: var(--gray); font-size: 0.88rem; line-height: 1.55; }
+
+    /* ── RÉSULTATS ── */
+    #resultats { background: var(--bg2); }
+    #resultats .inner { max-width: 1000px; margin: 0 auto; text-align: center; }
+
+    .stats-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+      gap: 32px;
+      margin-bottom: 60px;
+    }
+
+    .stat-card {
+      background: var(--bg3);
+      border: 1px solid var(--border);
+      border-radius: 16px;
+      padding: 40px 24px;
+      text-align: center;
+    }
+
+    .stat-num {
+      font-size: 3rem;
+      font-weight: 900;
+      background: linear-gradient(135deg, var(--blue), var(--blue2));
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      line-height: 1;
+      margin-bottom: 8px;
+    }
+
+    .stat-label { color: var(--gray); font-size: 0.9rem; }
+
+    /* ── OFFRE ── */
+    #offre .inner { max-width: 1100px; margin: 0 auto; }
+
+    .plans-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+      gap: 28px;
+      align-items: start;
+    }
+
+    .plan-card {
+      background: var(--bg2);
+      border: 1px solid var(--border);
+      border-radius: 20px;
+      padding: 40px 32px;
+      transition: all 0.3s;
+    }
+
+    .plan-card.featured {
+      background: linear-gradient(145deg, #0F1830, #0A1628);
+      border: 1px solid rgba(0,212,255,0.35);
+      box-shadow: var(--blue-glow);
+      transform: scale(1.03);
+    }
+
+    .plan-card:hover { transform: translateY(-4px); }
+    .plan-card.featured:hover { transform: scale(1.03) translateY(-4px); }
+
+    .plan-badge {
+      display: inline-block;
+      background: linear-gradient(135deg, var(--blue2), var(--blue));
+      color: var(--bg);
+      font-size: 0.72rem;
+      font-weight: 700;
+      padding: 4px 12px;
+      border-radius: 100px;
+      text-transform: uppercase;
+      letter-spacing: 1px;
+      margin-bottom: 16px;
+    }
+
+    .plan-name { font-size: 1.3rem; font-weight: 800; margin-bottom: 8px; }
+
+    .plan-price {
+      font-size: 2.8rem;
+      font-weight: 900;
+      margin: 20px 0 8px;
+      line-height: 1;
+    }
+
+    .plan-price sup { font-size: 1.2rem; font-weight: 600; vertical-align: top; margin-top: 8px; }
+    .plan-price span { font-size: 1rem; font-weight: 400; color: var(--gray); }
+
+    .plan-desc { color: var(--gray); font-size: 0.9rem; margin-bottom: 28px; line-height: 1.5; }
+
+    .plan-features { list-style: none; margin-bottom: 32px; }
+    .plan-features li {
+      display: flex;
+      align-items: flex-start;
+      gap: 10px;
+      padding: 8px 0;
+      font-size: 0.9rem;
+      color: var(--gray);
+      border-bottom: 1px solid var(--border);
+    }
+    .plan-features li:last-child { border-bottom: none; }
+    .plan-features li .check { color: var(--blue); font-size: 0.9rem; flex-shrink: 0; margin-top: 1px; }
+
+    /* ── CTA FINAL ── */
+    #cta {
+      text-align: center;
+      background: linear-gradient(180deg, var(--bg2) 0%, var(--bg) 100%);
+    }
+
+    #cta .inner { max-width: 680px; margin: 0 auto; }
+
+    .cta-glow {
+      position: relative;
+      padding: 80px 40px;
+      border-radius: 24px;
+      background: linear-gradient(145deg, #0F1830, #0A1628);
+      border: 1px solid rgba(0,212,255,0.25);
+      box-shadow: var(--blue-glow);
+    }
+
+    .cta-glow h2 { font-size: clamp(1.8rem, 4vw, 2.8rem); margin-bottom: 16px; }
+    .cta-glow p  { color: var(--gray); margin-bottom: 36px; font-size: 1.05rem; }
+
+    /* ── FOOTER ── */
+    footer {
+      text-align: center;
+      padding: 40px 6%;
+      border-top: 1px solid var(--border);
+      color: var(--gray);
+      font-size: 0.85rem;
+    }
+
+    footer strong {
+      background: linear-gradient(135deg, var(--blue), var(--blue2));
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      font-weight: 700;
+    }
+
+    /* ── RESPONSIVE ── */
+    @media (max-width: 640px) {
+      nav { padding: 16px 4%; }
+      .nav-links { display: none; }
+      section { padding: 70px 4%; }
+      .plan-card.featured { transform: scale(1); }
+    }
+
+    /* ── ANIMATION COUNTER ── */
+    .count-up { display: inline-block; }
+  </style>
+</head>
+<body>
+
+  <!-- ─── NAVIGATION ─── -->
+  <nav>
+    <div class="logo">Nexivo</div>
+    <div class="nav-links">
+      <a href="#probleme">Problème</a>
+      <a href="#solution">Solution</a>
+      <a href="#resultats">Résultats</a>
+      <a href="#offre">Offre</a>
+      <a href="#cta" class="btn btn-primary" style="padding:10px 20px;">Prendre contact</a>
+    </div>
+  </nav>
+
+  <!-- ─── HERO ─── -->
+  <section id="hero">
+    <div class="hero-glow"></div>
+    <div class="badge">
+      <span class="badge-dot"></span>
+      Système IA opérationnel — 7 agents actifs
+    </div>
+    <h1>Votre acquisition clients,<br /><span>automatisée par l'IA</span></h1>
+    <p class="hero-sub">
+      Nexivo déploie 7 agents IA qui prospectent, relancent et analysent votre marché pour vous — chaque jour, en automatique.
+    </p>
+    <div class="hero-cta">
+      <a href="#cta" class="btn btn-primary btn-lg">Réserver une démo gratuite</a>
+      <a href="#solution" class="btn btn-outline btn-lg">Voir comment ça marche</a>
+    </div>
+  </section>
+
+  <!-- ─── PROBLÈME ─── -->
+  <section id="probleme">
+    <div class="inner">
+      <p class="section-tag">Le problème</p>
+      <h2>Vous perdez du temps<br /><span>là où l'IA excelle</span></h2>
+      <p class="section-sub">La prospection manuelle est chronophage, irrégulière et peu scalable. Résultat : un chiffre d'affaires imprévisible.</p>
+      <div class="pain-grid">
+        <div class="pain-card">
+          <div class="pain-icon">⏳</div>
+          <h3>La prospection vous prend des heures</h3>
+          <p>Rechercher des contacts, rédiger des emails, envoyer manuellement… pour des résultats aléatoires et une fatigue mentale réelle.</p>
+        </div>
+        <div class="pain-card">
+          <div class="pain-icon">📉</div>
+          <h3>Le suivi tombe à l'eau</h3>
+          <p>80% des ventes se font après 5 relances. Mais sans système, vous oubliez de relancer, vous perdez des opportunités réelles.</p>
+        </div>
+        <div class="pain-card">
+          <div class="pain-icon">🎯</div>
+          <h3>Revenus imprévisibles</h3>
+          <p>Sans pipeline structuré, le chiffre d'affaires fluctue. Il vous faut un flux continu de prospects qualifiés — chaque semaine.</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ─── SOLUTION ─── -->
+  <section id="solution">
+    <div class="inner">
+      <p class="section-tag">La solution Nexivo</p>
+      <h2>7 agents IA qui travaillent<br /><span>à votre place</span></h2>
+      <p class="section-sub">Un système complet qui analyse votre marché, génère des prospects, envoie des emails et assure les relances — entièrement automatisé.</p>
+      <div class="agents-grid">
+        <div class="agent-card">
+          <div class="agent-num">AGENT 01</div>
+          <h3>Analyse de marché</h3>
+          <p>Scrute votre niche chaque jour : tendances, opportunités, concurrents et estimation des revenus potentiels.</p>
+        </div>
+        <div class="agent-card">
+          <div class="agent-num">AGENT 02</div>
+          <h3>Génération de prospects</h3>
+          <p>Identifie 3 profils qualifiés par jour avec entreprise, contact, problème principal et budget estimé.</p>
+        </div>
+        <div class="agent-card">
+          <div class="agent-num">AGENT 03</div>
+          <h3>Rédaction cold email</h3>
+          <p>Crée un email de vente percutant et personnalisé pour chaque niche. Objet accrocheur, corps court, CTA clair.</p>
+        </div>
+        <div class="agent-card">
+          <div class="agent-num">AGENT 04</div>
+          <h3>Plan 90 jours</h3>
+          <p>Génère un plan d'action opérationnel sur 3 mois avec KPIs, jalons et stratégies de croissance.</p>
+        </div>
+        <div class="agent-card">
+          <div class="agent-num">AGENT 05</div>
+          <h3>Détection de défaillances</h3>
+          <p>Surveille la santé du système en temps réel. Alerte VERT / ORANGE / ROUGE avec actions correctives.</p>
+        </div>
+        <div class="agent-card">
+          <div class="agent-num">AGENT 06</div>
+          <h3>Évolution & optimisation</h3>
+          <p>Analyse l'historique, propose 3 axes d'amélioration et identifie de nouvelles niches à fort potentiel.</p>
+        </div>
+        <div class="agent-card">
+          <div class="agent-num">AGENT 07</div>
+          <h3>Relances J1 J3 J5 J7</h3>
+          <p>Envoie automatiquement 4 relances personnalisées après chaque contact, au bon moment, avec le bon message.</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ─── RÉSULTATS ─── -->
+  <section id="resultats">
+    <div class="inner">
+      <p class="section-tag">Les résultats</p>
+      <h2>Des chiffres <span>concrets</span></h2>
+      <p class="section-sub" style="margin:0 auto 60px;">Ce que le système Nexivo génère chaque jour, en pilote automatique.</p>
+      <div class="stats-grid">
+        <div class="stat-card">
+          <div class="stat-num" data-target="3">0</div>
+          <div class="stat-label">Nouveaux prospects<br />qualifiés par jour</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-num" data-target="4">0</div>
+          <div class="stat-label">Relances automatiques<br />par prospect</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-num" data-target="7">0</div>
+          <div class="stat-label">Agents IA actifs<br />en simultané</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-num" style="-webkit-text-fill-color:transparent;background:linear-gradient(135deg,#00D4FF,#0066FF);-webkit-background-clip:text;">15K€</div>
+          <div class="stat-label">Potentiel mensuel<br />estimé</div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ─── OFFRE ─── -->
+  <section id="offre">
+    <div class="inner">
+      <p class="section-tag">L'offre</p>
+      <h2>Choisissez votre <span>niveau d'automatisation</span></h2>
+      <p class="section-sub">Commencez dès aujourd'hui. Résiliez à tout moment.</p>
+      <div class="plans-grid">
+
+        <div class="plan-card">
+          <div class="plan-name">Starter</div>
+          <div class="plan-price"><sup>€</sup>497<span>/mois</span></div>
+          <p class="plan-desc">Idéal pour tester le système et générer vos premiers prospects.</p>
+          <ul class="plan-features">
+            <li><span class="check">✦</span> 1 niche ciblée</li>
+            <li><span class="check">✦</span> 3 prospects/jour</li>
+            <li><span class="check">✦</span> Cold emails automatisés</li>
+            <li><span class="check">✦</span> Relances J1 J3 J5 J7</li>
+            <li><span class="check">✦</span> Rapport quotidien par email</li>
+            <li><span class="check">✦</span> Tableau de bord Google Sheets</li>
+          </ul>
+          <a href="mailto:inonbkrs@gmail.com?subject=Nexivo Starter" class="btn btn-outline" style="width:100%;justify-content:center;">Démarrer</a>
+        </div>
+
+        <div class="plan-card featured">
+          <div class="plan-badge">Populaire</div>
+          <div class="plan-name">Pro</div>
+          <div class="plan-price"><sup>€</sup>997<span>/mois</span></div>
+          <p class="plan-desc">Le système complet pour une croissance régulière et prévisible.</p>
+          <ul class="plan-features">
+            <li><span class="check">✦</span> 3 niches en rotation</li>
+            <li><span class="check">✦</span> 9 prospects/jour</li>
+            <li><span class="check">✦</span> Cold emails ultra-personnalisés</li>
+            <li><span class="check">✦</span> Relances J1 J3 J5 J7 par niche</li>
+            <li><span class="check">✦</span> Analyse défaillances VERT/ORANGE/ROUGE</li>
+            <li><span class="check">✦</span> Plan 90 jours actualisé</li>
+            <li><span class="check">✦</span> Accès Supabase dashboard</li>
+            <li><span class="check">✦</span> Support prioritaire</li>
+          </ul>
+          <a href="mailto:inonbkrs@gmail.com?subject=Nexivo Pro" class="btn btn-primary" style="width:100%;justify-content:center;">Commencer maintenant</a>
+        </div>
+
+        <div class="plan-card">
+          <div class="plan-name">Enterprise</div>
+          <div class="plan-price" style="font-size:2rem;">Sur mesure</div>
+          <p class="plan-desc">Déploiement personnalisé pour votre business, votre équipe, vos cibles.</p>
+          <ul class="plan-features">
+            <li><span class="check">✦</span> Niches illimitées</li>
+            <li><span class="check">✦</span> Volume de prospects sur mesure</li>
+            <li><span class="check">✦</span> Intégrations CRM (HubSpot, Pipedrive…)</li>
+            <li><span class="check">✦</span> Agents IA dédiés</li>
+            <li><span class="check">✦</span> Tableau de bord personnalisé</li>
+            <li><span class="check">✦</span> Onboarding & formation équipe</li>
+            <li><span class="check">✦</span> SLA & support dédié</li>
+          </ul>
+          <a href="mailto:inonbkrs@gmail.com?subject=Nexivo Enterprise" class="btn btn-outline" style="width:100%;justify-content:center;">Nous contacter</a>
+        </div>
+
+      </div>
+    </div>
+  </section>
+
+  <!-- ─── CTA FINAL ─── -->
+  <section id="cta">
+    <div class="inner">
+      <div class="cta-glow">
+        <p class="section-tag" style="margin-bottom:12px;">Prêt à automatiser ?</p>
+        <h2>Lancez votre système<br /><span>dès cette semaine</span></h2>
+        <p>30 minutes de démo. Zéro engagement. Vous voyez le système tourner en direct sur votre niche.</p>
+        <a href="mailto:inonbkrs@gmail.com?subject=Démo Nexivo — Je veux voir le système en action" class="btn btn-primary btn-lg">
+          📅 Réserver une démo gratuite
+        </a>
+      </div>
+    </div>
+  </section>
+
+  <!-- ─── FOOTER ─── -->
+  <footer>
+    <p style="margin-bottom:8px;"><strong>Nexivo</strong> — Automatisation IA B2B</p>
+    <p>© 2025 Nexivo. Tous droits réservés. &nbsp;·&nbsp; <a href="mailto:inonbkrs@gmail.com" style="color:var(--gray);text-decoration:none;">inonbkrs@gmail.com</a></p>
+  </footer>
+
+  <script>
+    // Counter animation
+    function animateCounter(el) {
+      const target = parseInt(el.dataset.target);
+      if (!target) return;
+      let current = 0;
+      const step = Math.ceil(target / 30);
+      const timer = setInterval(() => {
+        current = Math.min(current + step, target);
+        el.textContent = current;
+        if (current >= target) clearInterval(timer);
+      }, 40);
+    }
+
+    // Trigger on scroll
+    const observer = new IntersectionObserver((entries) => {
+      entries.forEach(e => {
+        if (e.isIntersecting) {
+          e.target.querySelectorAll('[data-target]').forEach(animateCounter);
+          observer.unobserve(e.target);
+        }
+      });
+    }, { threshold: 0.3 });
+
+    document.querySelectorAll('.stats-grid').forEach(g => observer.observe(g));
+  </script>
+</body>
+</html>
