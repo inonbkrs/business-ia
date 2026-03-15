@@ -7,6 +7,12 @@ from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
 from groq import Groq
 from supabase import create_client
+try:
+    import gspread
+    from google.oauth2.service_account import Credentials as GoogleCredentials
+    GSPREAD_AVAILABLE = True
+except ImportError:
+    GSPREAD_AVAILABLE = False
 
 # ─────────────────────────────────────────
 # CONFIGURATION
@@ -14,9 +20,11 @@ from supabase import create_client
 GROQ_API_KEY   = os.environ.get("GROQ_API_KEY")
 SUPABASE_URL   = os.environ.get("SUPABASE_URL")
 SUPABASE_KEY   = os.environ.get("SUPABASE_KEY")
-GMAIL_USER     = os.environ.get("GMAIL_USER", "inonbkrs@gmail.com")
-GMAIL_PASSWORD = os.environ.get("GMAIL_PASSWORD")
-GROQ_MODEL     = "llama-3.3-70b-versatile"
+GMAIL_USER          = os.environ.get("GMAIL_USER", "inonbkrs@gmail.com")
+GMAIL_PASSWORD      = os.environ.get("GMAIL_PASSWORD")
+GROQ_MODEL          = "llama-3.3-70b-versatile"
+GOOGLE_CREDENTIALS  = os.environ.get("GOOGLE_CREDENTIALS")
+GOOGLE_SHEET_NAME   = os.environ.get("GOOGLE_SHEET_NAME", "Business IA - Prospects")
 
 # ⚠️ MODE TEST : tous les emails arrivent dans ta Gmail
 # Mets False quand tu as de vrais prospects
@@ -260,8 +268,61 @@ Réécris l'email en intégrant naturellement le prénom, l'entreprise et le pro
                 server.login(GMAIL_USER, GMAIL_PASSWORD)
                 server.sendmail(GMAIL_USER, destinataire, msg.as_string())
             print(f"   ✅ [{i}/{len(prospects)}] → {email_dest} ({entreprise})")
+            ajouter_prospect_sheets(prenom, entreprise, email_dest, niche)
         except Exception as e:
             print(f"   ❌ [{i}/{len(prospects)}] Erreur {email_dest} : {e}")
+
+# ─────────────────────────────────────────
+# GOOGLE SHEETS — SUIVI PROSPECTS 📊
+# ─────────────────────────────────────────
+SHEETS_HEADERS = ["Prénom", "Entreprise", "Email", "Niche", "Date envoi", "Statut", "J1", "J3", "J5", "J7"]
+
+def _get_sheets_client():
+    if not GSPREAD_AVAILABLE:
+        print("⚠️  gspread non installé — Google Sheets désactivé")
+        return None
+    if not GOOGLE_CREDENTIALS:
+        print("⚠️  GOOGLE_CREDENTIALS non configuré — Google Sheets désactivé")
+        return None
+    try:
+        creds_dict = json.loads(GOOGLE_CREDENTIALS)
+        scopes = [
+            "https://www.googleapis.com/auth/spreadsheets",
+            "https://www.googleapis.com/auth/drive",
+        ]
+        creds = GoogleCredentials.from_service_account_info(creds_dict, scopes=scopes)
+        return gspread.authorize(creds)
+    except Exception as e:
+        print(f"⚠️  Google Sheets — Erreur connexion : {e}")
+        return None
+
+def _get_ou_creer_feuille(client):
+    try:
+        sh = client.open(GOOGLE_SHEET_NAME)
+    except gspread.SpreadsheetNotFound:
+        sh = client.create(GOOGLE_SHEET_NAME)
+        sh.share(GMAIL_USER, perm_type="user", role="writer")
+        ws = sh.sheet1
+        ws.append_row(SHEETS_HEADERS)
+        print(f"📊 Google Sheets — Feuille '{GOOGLE_SHEET_NAME}' créée et partagée avec {GMAIL_USER}")
+        return ws
+    ws = sh.sheet1
+    if not ws.get_all_values():
+        ws.append_row(SHEETS_HEADERS)
+    return ws
+
+def ajouter_prospect_sheets(prenom: str, entreprise: str, email: str, niche: str):
+    client = _get_sheets_client()
+    if not client:
+        return
+    try:
+        ws = _get_ou_creer_feuille(client)
+        date_envoi = datetime.date.today().strftime("%d/%m/%Y")
+        row = [prenom, entreprise, email, niche, date_envoi, "Envoyé", "", "", "", ""]
+        ws.append_row(row)
+        print(f"   📊 Sheets — {prenom} ({entreprise}) ajouté")
+    except Exception as e:
+        print(f"   ⚠️  Sheets — Erreur ajout prospect : {e}")
 
 # ─────────────────────────────────────────
 # ENVOI RAPPORT COMPLET

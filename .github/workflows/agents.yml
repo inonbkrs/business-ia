@@ -19,7 +19,7 @@ jobs:
 
       - name: Installation des dépendances
         run: |
-          pip install crewai groq supabase
+          pip install crewai groq supabase gspread google-auth
 
       - name: Lancement des agents IA
         env:
@@ -28,5 +28,6 @@ jobs:
           SUPABASE_KEY: ${{ secrets.SUPABASE_KEY }}
           GMAIL_USER: ${{ secrets.GMAIL_USER }}
           GMAIL_PASSWORD: ${{ secrets.GMAIL_PASSWORD }}
+          GOOGLE_CREDENTIALS: ${{ secrets.GOOGLE_CREDENTIALS }}
         run: |
           python business_agents_groq.py
