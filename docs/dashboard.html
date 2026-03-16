@@ -39,6 +39,9 @@
       display: flex;
       flex-direction: column;
       flex-shrink: 0;
+      position: relative;
+      z-index: 20;
+      pointer-events: auto;
     }
     .sidebar-logo {
       padding: 24px 20px 20px;
@@ -100,8 +103,7 @@
     .topbar {
       position: sticky;
       top: 0;
-      background: rgba(6,12,26,.9);
-      backdrop-filter: blur(12px);
+      background: rgba(6,12,26,.97);
       border-bottom: 1px solid var(--border);
       padding: 14px 28px;
       display: flex;
@@ -501,21 +503,21 @@
     </div>
 
     <div class="nav-section">Vue d'ensemble</div>
-    <div class="nav-item active" onclick="showTab('overview', this)">
+    <div class="nav-item active" data-tab="overview" onclick="showTab('overview', this)">
       <span class="icon">📊</span> Overview
     </div>
-    <div class="nav-item" onclick="showTab('prospects', this)">
+    <div class="nav-item" data-tab="prospects" onclick="showTab('prospects', this)">
       <span class="icon">👥</span> Prospects
     </div>
 
     <div class="nav-section">Système</div>
-    <div class="nav-item" onclick="showTab('agents', this)">
+    <div class="nav-item" data-tab="agents" onclick="showTab('agents', this)">
       <span class="icon">🤖</span> Agents IA
     </div>
-    <div class="nav-item" onclick="showTab('reports', this)">
+    <div class="nav-item" data-tab="reports" onclick="showTab('reports', this)">
       <span class="icon">📋</span> Rapports
     </div>
-    <div class="nav-item" onclick="showTab('tasks', this)">
+    <div class="nav-item" data-tab="tasks" onclick="showTab('tasks', this)">
       <span class="icon">✅</span> Tâches
     </div>
 
@@ -1305,6 +1307,13 @@ function renderTasks() {
 // INIT
 // ════════════════════════════════════════
 document.addEventListener('DOMContentLoaded', () => {
+  // Attach nav listeners via JS (in addition to inline onclick, for robustness)
+  document.querySelectorAll('.nav-item[data-tab]').forEach(item => {
+    item.addEventListener('click', function() {
+      showTab(this.dataset.tab, this);
+    });
+  });
+
   renderAgents();
   renderTasks();
 
