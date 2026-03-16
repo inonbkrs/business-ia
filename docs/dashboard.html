@@ -443,7 +443,10 @@
 <!-- ═══════════════ CONFIG MODAL ═══════════════ -->
 <div class="modal-overlay" id="configModal" onclick="if(event.target===this)closeConfig()">
   <div class="modal">
-    <div class="modal-title">⚙️ Configuration Nexivo</div>
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px">
+      <div class="modal-title" style="margin-bottom:0">⚙️ Configuration Nexivo</div>
+      <button onclick="closeConfig()" style="background:none;border:none;color:var(--text2);font-size:22px;cursor:pointer;line-height:1;padding:0 4px;" title="Fermer">✕</button>
+    </div>
     <div class="modal-sub">Entrez vos clés API pour connecter le dashboard à Supabase et aux agents IA. Elles sont stockées localement dans votre navigateur.</div>
     <div class="form-group">
       <label class="form-label">Supabase URL</label>
@@ -528,7 +531,7 @@
         <span class="status-dot"></span> Overview
       </div>
       <div class="topbar-right">
-        <span id="lastUpdate">—</span>
+        <span id="lastUpdate">⏳ Connexion...</span>
         <span style="color:var(--blue);font-weight:600;">Nexivo v1.0</span>
       </div>
     </div>
@@ -651,8 +654,14 @@ let chatHistory = [];
 
 function initSupabase() {
   if (SUPABASE_URL && SUPABASE_KEY) {
-    supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
-    return true;
+    try {
+      if (!window.supabase) throw new Error('CDN Supabase non chargé');
+      supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+      return true;
+    } catch(e) {
+      console.error('Supabase init error:', e);
+      return false;
+    }
   }
   return false;
 }
