@@ -441,7 +441,7 @@
 <body>
 
 <!-- ═══════════════ CONFIG MODAL ═══════════════ -->
-<div class="modal-overlay" id="configModal">
+<div class="modal-overlay" id="configModal" onclick="if(event.target===this)closeConfig()">
   <div class="modal">
     <div class="modal-title">⚙️ Configuration Nexivo</div>
     <div class="modal-sub">Entrez vos clés API pour connecter le dashboard à Supabase et aux agents IA. Elles sont stockées localement dans votre navigateur.</div>
@@ -710,10 +710,14 @@ async function loadAllData() {
     return;
   }
   try {
-    const { data, error } = await supabase
+    const timeout = new Promise((_, reject) =>
+      setTimeout(() => reject(new Error('Timeout — vérifiez vos clés Supabase')), 10000)
+    );
+    const query = supabase
       .from('rapports')
       .select('*')
       .order('date_creation', { ascending: false });
+    const { data, error } = await Promise.race([query, timeout]);
 
     if (error) throw error;
     allReports = data || [];
@@ -759,13 +763,16 @@ function showNeedsConfig() {
   document.getElementById('reportsList').innerHTML = msg;
 }
 
-function showError(msg) {
+function showError(errMsg) {
   const html = `<div class="empty-state">
     <div class="empty-icon">❌</div>
-    <p>${msg}</p>
+    <p>${errMsg}</p>
     <button class="btn btn-ghost btn-sm" style="margin-top:12px" onclick="openConfig()">Reconfigurer</button>
   </div>`;
   document.getElementById('alertGrid').innerHTML = html;
+  document.getElementById('recentActivity').innerHTML = html;
+  document.getElementById('prospectsTable').innerHTML = `<tr><td colspan="8">${html}</td></tr>`;
+  document.getElementById('reportsList').innerHTML = html;
 }
 
 // ════════════════════════════════════════
