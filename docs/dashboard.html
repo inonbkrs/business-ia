@@ -1,0 +1,1304 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Nexivo — Dashboard</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet" />
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --bg:       #060c1a;
+      --bg2:      #0d1627;
+      --bg3:      #111e35;
+      --border:   rgba(59,130,246,0.18);
+      --blue:     #3B82F6;
+      --purple:   #818CF8;
+      --cyan:     #22D3EE;
+      --green:    #10B981;
+      --orange:   #F59E0B;
+      --red:      #EF4444;
+      --text:     #E2E8F0;
+      --text2:    #94A3B8;
+      --sidebar:  240px;
+    }
+
+    html, body { height: 100%; font-family: 'Inter', sans-serif; background: var(--bg); color: var(--text); overflow: hidden; }
+
+    /* ── LAYOUT ── */
+    .layout { display: flex; height: 100vh; }
+
+    /* ── SIDEBAR ── */
+    .sidebar {
+      width: var(--sidebar);
+      background: var(--bg2);
+      border-right: 1px solid var(--border);
+      display: flex;
+      flex-direction: column;
+      flex-shrink: 0;
+    }
+    .sidebar-logo {
+      padding: 24px 20px 20px;
+      border-bottom: 1px solid var(--border);
+    }
+    .logo-text {
+      font-size: 22px;
+      font-weight: 800;
+      background: linear-gradient(135deg, var(--blue), var(--purple));
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+    }
+    .logo-sub { font-size: 11px; color: var(--text2); margin-top: 2px; }
+
+    .nav-section { padding: 16px 12px 8px; font-size: 10px; font-weight: 600; text-transform: uppercase; letter-spacing: 1.2px; color: var(--text2); }
+
+    .nav-item {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 10px 20px;
+      font-size: 14px;
+      font-weight: 500;
+      color: var(--text2);
+      cursor: pointer;
+      border-radius: 0;
+      transition: all .15s;
+      border-left: 3px solid transparent;
+    }
+    .nav-item:hover { color: var(--text); background: rgba(59,130,246,.08); }
+    .nav-item.active { color: var(--blue); background: rgba(59,130,246,.12); border-left-color: var(--blue); }
+    .nav-item .icon { font-size: 16px; width: 20px; text-align: center; }
+
+    .sidebar-bottom {
+      margin-top: auto;
+      padding: 16px 20px;
+      border-top: 1px solid var(--border);
+    }
+    .config-btn {
+      width: 100%;
+      padding: 8px 12px;
+      background: rgba(59,130,246,.1);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      color: var(--text2);
+      font-size: 13px;
+      cursor: pointer;
+      transition: all .15s;
+    }
+    .config-btn:hover { color: var(--blue); border-color: var(--blue); }
+
+    /* ── MAIN ── */
+    .main {
+      flex: 1;
+      overflow-y: auto;
+      display: flex;
+      flex-direction: column;
+    }
+    .topbar {
+      position: sticky;
+      top: 0;
+      background: rgba(6,12,26,.9);
+      backdrop-filter: blur(12px);
+      border-bottom: 1px solid var(--border);
+      padding: 14px 28px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      z-index: 10;
+    }
+    .page-title { font-size: 18px; font-weight: 700; }
+    .status-dot {
+      display: inline-block;
+      width: 8px; height: 8px;
+      border-radius: 50%;
+      background: var(--green);
+      box-shadow: 0 0 8px var(--green);
+      margin-right: 8px;
+      animation: blink 2s infinite;
+    }
+    @keyframes blink { 0%,100%{opacity:1} 50%{opacity:.3} }
+    .topbar-right { display: flex; align-items: center; gap: 12px; font-size: 13px; color: var(--text2); }
+
+    .content { padding: 28px; flex: 1; }
+
+    /* ── TABS ── */
+    .tab-content { display: none; }
+    .tab-content.active { display: block; }
+
+    /* ── CARDS ── */
+    .card {
+      background: var(--bg2);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 20px;
+    }
+    .stat-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 16px; margin-bottom: 28px; }
+    .stat-card {
+      background: var(--bg2);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 20px;
+    }
+    .stat-label { font-size: 12px; color: var(--text2); text-transform: uppercase; letter-spacing: .8px; margin-bottom: 8px; }
+    .stat-value { font-size: 32px; font-weight: 800; background: linear-gradient(135deg, var(--blue), var(--cyan)); -webkit-background-clip: text; -webkit-text-fill-color: transparent; }
+    .stat-sub { font-size: 12px; color: var(--text2); margin-top: 4px; }
+
+    /* ── SECTION TITLES ── */
+    .section-title { font-size: 16px; font-weight: 700; margin-bottom: 16px; display: flex; align-items: center; gap: 8px; }
+
+    /* ── TABLE ── */
+    .table-wrap { overflow-x: auto; }
+    table { width: 100%; border-collapse: collapse; font-size: 13px; }
+    th { padding: 10px 14px; text-align: left; color: var(--text2); font-weight: 600; font-size: 11px; text-transform: uppercase; letter-spacing: .8px; border-bottom: 1px solid var(--border); }
+    td { padding: 12px 14px; border-bottom: 1px solid rgba(59,130,246,.08); }
+    tr:last-child td { border-bottom: none; }
+    tr:hover td { background: rgba(59,130,246,.04); }
+
+    .badge {
+      display: inline-flex;
+      align-items: center;
+      padding: 3px 10px;
+      border-radius: 20px;
+      font-size: 11px;
+      font-weight: 600;
+    }
+    .badge-green { background: rgba(16,185,129,.15); color: var(--green); }
+    .badge-orange { background: rgba(245,158,11,.15); color: var(--orange); }
+    .badge-red { background: rgba(239,68,68,.15); color: var(--red); }
+    .badge-blue { background: rgba(59,130,246,.15); color: var(--blue); }
+    .badge-purple { background: rgba(129,140,248,.15); color: var(--purple); }
+
+    /* ── AGENTS GRID ── */
+    .agents-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 16px; }
+    .agent-card {
+      background: var(--bg2);
+      border: 1px solid var(--border);
+      border-radius: 14px;
+      padding: 20px;
+      transition: border-color .2s, transform .2s;
+      cursor: pointer;
+    }
+    .agent-card:hover { border-color: var(--blue); transform: translateY(-2px); }
+    .agent-header { display: flex; align-items: flex-start; gap: 14px; margin-bottom: 12px; }
+    .agent-icon { font-size: 28px; flex-shrink: 0; }
+    .agent-num { font-size: 10px; font-weight: 700; color: var(--blue); text-transform: uppercase; letter-spacing: 1px; }
+    .agent-name { font-size: 15px; font-weight: 700; margin-top: 2px; }
+    .agent-desc { font-size: 13px; color: var(--text2); line-height: 1.5; margin-bottom: 14px; }
+    .agent-meta { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 14px; }
+    .agent-actions { display: flex; gap: 8px; }
+    .btn {
+      padding: 8px 16px;
+      border-radius: 8px;
+      font-size: 13px;
+      font-weight: 600;
+      cursor: pointer;
+      border: none;
+      transition: all .15s;
+    }
+    .btn-primary { background: var(--blue); color: #fff; }
+    .btn-primary:hover { background: #2563EB; }
+    .btn-ghost { background: transparent; color: var(--text2); border: 1px solid var(--border); }
+    .btn-ghost:hover { color: var(--text); border-color: var(--blue); }
+    .btn-sm { padding: 5px 12px; font-size: 12px; }
+
+    /* ── CHAT PANEL ── */
+    .chat-overlay {
+      position: fixed;
+      inset: 0;
+      background: rgba(0,0,0,.6);
+      backdrop-filter: blur(4px);
+      z-index: 100;
+      display: none;
+      align-items: center;
+      justify-content: flex-end;
+    }
+    .chat-overlay.open { display: flex; }
+    .chat-panel {
+      width: 480px;
+      height: 100vh;
+      background: var(--bg2);
+      border-left: 1px solid var(--border);
+      display: flex;
+      flex-direction: column;
+    }
+    .chat-header {
+      padding: 20px 24px;
+      border-bottom: 1px solid var(--border);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+    .chat-agent-info { display: flex; align-items: center; gap: 12px; }
+    .chat-agent-icon { font-size: 24px; }
+    .chat-agent-name { font-size: 15px; font-weight: 700; }
+    .chat-agent-sub { font-size: 12px; color: var(--text2); }
+    .close-btn { background: none; border: none; color: var(--text2); font-size: 20px; cursor: pointer; padding: 4px; }
+    .close-btn:hover { color: var(--text); }
+
+    .chat-messages {
+      flex: 1;
+      overflow-y: auto;
+      padding: 20px;
+      display: flex;
+      flex-direction: column;
+      gap: 14px;
+    }
+    .msg { display: flex; gap: 10px; max-width: 90%; }
+    .msg.user { align-self: flex-end; flex-direction: row-reverse; }
+    .msg-avatar {
+      width: 32px; height: 32px;
+      border-radius: 50%;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 14px;
+      flex-shrink: 0;
+    }
+    .msg.user .msg-avatar { background: var(--blue); }
+    .msg.agent .msg-avatar { background: var(--bg3); border: 1px solid var(--border); }
+    .msg-bubble {
+      padding: 10px 14px;
+      border-radius: 14px;
+      font-size: 13px;
+      line-height: 1.6;
+    }
+    .msg.user .msg-bubble { background: var(--blue); color: #fff; border-bottom-right-radius: 4px; }
+    .msg.agent .msg-bubble { background: var(--bg3); color: var(--text); border-bottom-left-radius: 4px; white-space: pre-wrap; }
+    .msg-typing { color: var(--text2); font-style: italic; font-size: 13px; }
+
+    .chat-input-area {
+      padding: 16px 20px;
+      border-top: 1px solid var(--border);
+      display: flex;
+      gap: 10px;
+    }
+    .chat-input {
+      flex: 1;
+      background: var(--bg3);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 10px 14px;
+      font-size: 13px;
+      color: var(--text);
+      font-family: 'Inter', sans-serif;
+      resize: none;
+      max-height: 100px;
+    }
+    .chat-input:focus { outline: none; border-color: var(--blue); }
+    .send-btn {
+      padding: 10px 16px;
+      background: var(--blue);
+      border: none;
+      border-radius: 10px;
+      color: #fff;
+      font-size: 18px;
+      cursor: pointer;
+      transition: background .15s;
+      align-self: flex-end;
+    }
+    .send-btn:hover { background: #2563EB; }
+    .send-btn:disabled { opacity: .5; cursor: not-allowed; }
+
+    /* ── CONFIG MODAL ── */
+    .modal-overlay {
+      position: fixed;
+      inset: 0;
+      background: rgba(0,0,0,.7);
+      backdrop-filter: blur(6px);
+      z-index: 200;
+      display: none;
+      align-items: center;
+      justify-content: center;
+    }
+    .modal-overlay.open { display: flex; }
+    .modal {
+      background: var(--bg2);
+      border: 1px solid var(--border);
+      border-radius: 16px;
+      padding: 32px;
+      width: 500px;
+      max-width: 95vw;
+    }
+    .modal-title { font-size: 20px; font-weight: 800; margin-bottom: 6px; }
+    .modal-sub { font-size: 13px; color: var(--text2); margin-bottom: 24px; line-height: 1.5; }
+    .form-group { margin-bottom: 16px; }
+    .form-label { font-size: 12px; font-weight: 600; color: var(--text2); text-transform: uppercase; letter-spacing: .8px; margin-bottom: 6px; display: block; }
+    .form-input {
+      width: 100%;
+      background: var(--bg3);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 10px 14px;
+      font-size: 13px;
+      color: var(--text);
+      font-family: 'Inter', sans-serif;
+    }
+    .form-input:focus { outline: none; border-color: var(--blue); }
+    .modal-actions { display: flex; gap: 10px; margin-top: 24px; justify-content: flex-end; }
+
+    /* ── REPORTS ── */
+    .report-item {
+      background: var(--bg2);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 16px 20px;
+      margin-bottom: 12px;
+      cursor: pointer;
+      transition: border-color .15s;
+    }
+    .report-item:hover { border-color: var(--blue); }
+    .report-header { display: flex; align-items: center; justify-content: space-between; }
+    .report-niche { font-weight: 600; font-size: 15px; }
+    .report-date { font-size: 12px; color: var(--text2); }
+    .report-body { margin-top: 12px; display: none; }
+    .report-body.open { display: block; }
+    .report-section { margin-bottom: 14px; }
+    .report-section-title { font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 1px; color: var(--blue); margin-bottom: 6px; }
+    .report-text { font-size: 13px; color: var(--text2); line-height: 1.6; white-space: pre-wrap; }
+
+    /* ── TASKS ── */
+    .task-item {
+      display: flex;
+      align-items: flex-start;
+      gap: 14px;
+      padding: 14px 18px;
+      background: var(--bg2);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      margin-bottom: 8px;
+    }
+    .task-check { font-size: 18px; flex-shrink: 0; }
+    .task-content { flex: 1; }
+    .task-title { font-size: 14px; font-weight: 600; margin-bottom: 2px; }
+    .task-sub { font-size: 12px; color: var(--text2); }
+    .task-done .task-title { text-decoration: line-through; color: var(--text2); }
+
+    /* ── CODE BLOCK ── */
+    .code-ref {
+      background: var(--bg);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 8px 12px;
+      font-size: 12px;
+      font-family: 'Fira Code', monospace;
+      color: var(--cyan);
+      margin-top: 8px;
+    }
+
+    /* ── PROSPECT TABLE FILTERS ── */
+    .filters { display: flex; gap: 10px; margin-bottom: 16px; flex-wrap: wrap; }
+    .filter-input {
+      background: var(--bg2);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 8px 14px;
+      font-size: 13px;
+      color: var(--text);
+      font-family: 'Inter', sans-serif;
+    }
+    .filter-input:focus { outline: none; border-color: var(--blue); }
+
+    /* ── EMPTY STATE ── */
+    .empty-state {
+      text-align: center;
+      padding: 60px 20px;
+      color: var(--text2);
+    }
+    .empty-state .empty-icon { font-size: 48px; margin-bottom: 12px; }
+    .empty-state p { font-size: 14px; }
+
+    /* ── SCROLLBAR ── */
+    ::-webkit-scrollbar { width: 5px; height: 5px; }
+    ::-webkit-scrollbar-track { background: transparent; }
+    ::-webkit-scrollbar-thumb { background: rgba(59,130,246,.3); border-radius: 10px; }
+
+    /* ── LOADING ── */
+    .spinner { display: inline-block; width: 18px; height: 18px; border: 2px solid var(--border); border-top-color: var(--blue); border-radius: 50%; animation: spin .6s linear infinite; }
+    @keyframes spin { to { transform: rotate(360deg); } }
+    .loading-bar { text-align: center; padding: 40px; color: var(--text2); }
+
+    /* ── QUICK ACTIONS ── */
+    .quick-actions { display: flex; gap: 10px; flex-wrap: wrap; margin-bottom: 24px; }
+
+    /* ── NICHE PILLS ── */
+    .niche-pill {
+      padding: 4px 12px;
+      border-radius: 20px;
+      font-size: 12px;
+      font-weight: 500;
+    }
+    .niche-0 { background: rgba(59,130,246,.15); color: var(--blue); }
+    .niche-1 { background: rgba(129,140,248,.15); color: var(--purple); }
+    .niche-2 { background: rgba(34,211,238,.15); color: var(--cyan); }
+
+    @media (max-width: 768px) {
+      .sidebar { display: none; }
+      .chat-panel { width: 100vw; }
+    }
+  </style>
+</head>
+<body>
+
+<!-- ═══════════════ CONFIG MODAL ═══════════════ -->
+<div class="modal-overlay" id="configModal">
+  <div class="modal">
+    <div class="modal-title">⚙️ Configuration Nexivo</div>
+    <div class="modal-sub">Entrez vos clés API pour connecter le dashboard à Supabase et aux agents IA. Elles sont stockées localement dans votre navigateur.</div>
+    <div class="form-group">
+      <label class="form-label">Supabase URL</label>
+      <input class="form-input" id="cfg-supabase-url" type="text" placeholder="https://xxxx.supabase.co" />
+    </div>
+    <div class="form-group">
+      <label class="form-label">Supabase Anon Key</label>
+      <input class="form-input" id="cfg-supabase-key" type="password" placeholder="eyJhbGciOiJIUzI1..." />
+    </div>
+    <div class="form-group">
+      <label class="form-label">Groq API Key (pour le chat agents)</label>
+      <input class="form-input" id="cfg-groq-key" type="password" placeholder="gsk_..." />
+    </div>
+    <div class="modal-actions">
+      <button class="btn btn-ghost" onclick="closeConfig()">Annuler</button>
+      <button class="btn btn-primary" onclick="saveConfig()">💾 Sauvegarder</button>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════════ CHAT OVERLAY ═══════════════ -->
+<div class="chat-overlay" id="chatOverlay">
+  <div class="chat-panel">
+    <div class="chat-header">
+      <div class="chat-agent-info">
+        <div class="chat-agent-icon" id="chatIcon">🤖</div>
+        <div>
+          <div class="chat-agent-name" id="chatName">Agent</div>
+          <div class="chat-agent-sub" id="chatSub">En ligne</div>
+        </div>
+      </div>
+      <button class="close-btn" onclick="closeChat()">✕</button>
+    </div>
+    <div class="chat-messages" id="chatMessages"></div>
+    <div class="chat-input-area">
+      <textarea class="chat-input" id="chatInput" placeholder="Posez votre question à l'agent..." rows="1"
+        onkeydown="if(event.key==='Enter'&&!event.shiftKey){event.preventDefault();sendMessage()}"
+        oninput="autoResize(this)"></textarea>
+      <button class="send-btn" id="sendBtn" onclick="sendMessage()">➤</button>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════════ LAYOUT ═══════════════ -->
+<div class="layout">
+
+  <!-- SIDEBAR -->
+  <div class="sidebar">
+    <div class="sidebar-logo">
+      <div class="logo-text">Nexivo</div>
+      <div class="logo-sub">Dashboard IA</div>
+    </div>
+
+    <div class="nav-section">Vue d'ensemble</div>
+    <div class="nav-item active" onclick="showTab('overview', this)">
+      <span class="icon">📊</span> Overview
+    </div>
+    <div class="nav-item" onclick="showTab('prospects', this)">
+      <span class="icon">👥</span> Prospects
+    </div>
+
+    <div class="nav-section">Système</div>
+    <div class="nav-item" onclick="showTab('agents', this)">
+      <span class="icon">🤖</span> Agents IA
+    </div>
+    <div class="nav-item" onclick="showTab('reports', this)">
+      <span class="icon">📋</span> Rapports
+    </div>
+    <div class="nav-item" onclick="showTab('tasks', this)">
+      <span class="icon">✅</span> Tâches
+    </div>
+
+    <div class="sidebar-bottom">
+      <button class="config-btn" onclick="openConfig()">⚙️ Configurer les clés API</button>
+    </div>
+  </div>
+
+  <!-- MAIN -->
+  <div class="main">
+    <div class="topbar">
+      <div class="page-title" id="pageTitle">
+        <span class="status-dot"></span> Overview
+      </div>
+      <div class="topbar-right">
+        <span id="lastUpdate">—</span>
+        <span style="color:var(--blue);font-weight:600;">Nexivo v1.0</span>
+      </div>
+    </div>
+
+    <div class="content">
+
+      <!-- ══ TAB: OVERVIEW ══ -->
+      <div class="tab-content active" id="tab-overview">
+        <div class="stat-grid" id="statsGrid">
+          <div class="stat-card">
+            <div class="stat-label">Total Rapports</div>
+            <div class="stat-value" id="stat-reports">—</div>
+            <div class="stat-sub">depuis le lancement</div>
+          </div>
+          <div class="stat-card">
+            <div class="stat-label">Total Prospects</div>
+            <div class="stat-value" id="stat-prospects">—</div>
+            <div class="stat-sub">générés par les agents</div>
+          </div>
+          <div class="stat-card">
+            <div class="stat-label">Niches actives</div>
+            <div class="stat-value" id="stat-niches">3</div>
+            <div class="stat-sub">rotation quotidienne</div>
+          </div>
+          <div class="stat-card">
+            <div class="stat-label">Agents IA</div>
+            <div class="stat-value" style="background:linear-gradient(135deg,var(--purple),var(--cyan));-webkit-background-clip:text;">7</div>
+            <div class="stat-sub">pipeline complet</div>
+          </div>
+        </div>
+
+        <!-- Alert levels -->
+        <div class="section-title">📡 Statut des alertes</div>
+        <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:12px;margin-bottom:28px;" id="alertGrid">
+          <div class="loading-bar"><div class="spinner"></div></div>
+        </div>
+
+        <!-- Recent activity -->
+        <div class="section-title">🕒 Activité récente</div>
+        <div class="card" id="recentActivity">
+          <div class="loading-bar"><div class="spinner"></div></div>
+        </div>
+      </div>
+
+      <!-- ══ TAB: PROSPECTS ══ -->
+      <div class="tab-content" id="tab-prospects">
+        <div class="filters">
+          <input class="filter-input" type="text" id="filterNiche" placeholder="🔍 Filtrer par niche..." oninput="filterProspects()" />
+          <input class="filter-input" type="text" id="filterCompany" placeholder="🏢 Rechercher une entreprise..." oninput="filterProspects()" />
+        </div>
+        <div class="card">
+          <div class="table-wrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>Prénom</th>
+                  <th>Entreprise</th>
+                  <th>Email</th>
+                  <th>Secteur</th>
+                  <th>Niche</th>
+                  <th>Budget</th>
+                  <th>Problème</th>
+                  <th>Date</th>
+                </tr>
+              </thead>
+              <tbody id="prospectsTable">
+                <tr><td colspan="8"><div class="loading-bar"><div class="spinner"></div></div></td></tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+        <div style="margin-top:12px;font-size:13px;color:var(--text2);">
+          <span id="prospectsCount">—</span> prospect(s) affichés
+        </div>
+      </div>
+
+      <!-- ══ TAB: AGENTS ══ -->
+      <div class="tab-content" id="tab-agents">
+        <div style="margin-bottom:20px;font-size:14px;color:var(--text2);">
+          Cliquez sur un agent pour voir ses détails ou lui parler via le chat IA.
+        </div>
+        <div class="agents-grid" id="agentsGrid"></div>
+      </div>
+
+      <!-- ══ TAB: REPORTS ══ -->
+      <div class="tab-content" id="tab-reports">
+        <div class="filters">
+          <input class="filter-input" type="text" id="filterReportNiche" placeholder="🔍 Filtrer par niche..." oninput="filterReports()" />
+        </div>
+        <div id="reportsList">
+          <div class="loading-bar"><div class="spinner"></div></div>
+        </div>
+      </div>
+
+      <!-- ══ TAB: TASKS ══ -->
+      <div class="tab-content" id="tab-tasks">
+        <div style="margin-bottom:20px;font-size:14px;color:var(--text2);">
+          Suivi des fonctionnalités développées et à venir pour Nexivo.
+        </div>
+        <div id="tasksList"></div>
+      </div>
+
+    </div><!-- /content -->
+  </div><!-- /main -->
+</div><!-- /layout -->
+
+<script>
+// ════════════════════════════════════════
+// CONFIG
+// ════════════════════════════════════════
+let SUPABASE_URL = localStorage.getItem('nx_supabase_url') || '';
+let SUPABASE_KEY = localStorage.getItem('nx_supabase_key') || '';
+let GROQ_KEY     = localStorage.getItem('nx_groq_key') || '';
+
+let supabase = null;
+let allReports = [];
+let allProspects = [];
+let currentAgent = null;
+let chatHistory = [];
+
+function initSupabase() {
+  if (SUPABASE_URL && SUPABASE_KEY) {
+    supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+    return true;
+  }
+  return false;
+}
+
+function openConfig() {
+  document.getElementById('cfg-supabase-url').value = SUPABASE_URL;
+  document.getElementById('cfg-supabase-key').value = SUPABASE_KEY;
+  document.getElementById('cfg-groq-key').value = GROQ_KEY;
+  document.getElementById('configModal').classList.add('open');
+}
+
+function closeConfig() {
+  document.getElementById('configModal').classList.remove('open');
+}
+
+function saveConfig() {
+  SUPABASE_URL = document.getElementById('cfg-supabase-url').value.trim();
+  SUPABASE_KEY = document.getElementById('cfg-supabase-key').value.trim();
+  GROQ_KEY     = document.getElementById('cfg-groq-key').value.trim();
+  localStorage.setItem('nx_supabase_url', SUPABASE_URL);
+  localStorage.setItem('nx_supabase_key', SUPABASE_KEY);
+  localStorage.setItem('nx_groq_key', GROQ_KEY);
+  closeConfig();
+  if (initSupabase()) {
+    loadAllData();
+  }
+}
+
+// ════════════════════════════════════════
+// NAVIGATION
+// ════════════════════════════════════════
+function showTab(name, el) {
+  document.querySelectorAll('.tab-content').forEach(t => t.classList.remove('active'));
+  document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
+  document.getElementById('tab-' + name).classList.add('active');
+  if (el) el.classList.add('active');
+
+  const titles = {
+    overview: '📊 Overview',
+    prospects: '👥 Prospects',
+    agents: '🤖 Agents IA',
+    reports: '📋 Rapports',
+    tasks: '✅ Tâches'
+  };
+  document.getElementById('pageTitle').innerHTML =
+    '<span class="status-dot"></span> ' + (titles[name] || name);
+}
+
+// ════════════════════════════════════════
+// DATA LOADING
+// ════════════════════════════════════════
+async function loadAllData() {
+  if (!supabase) {
+    showNeedsConfig();
+    return;
+  }
+  try {
+    const { data, error } = await supabase
+      .from('rapports')
+      .select('*')
+      .order('date_creation', { ascending: false });
+
+    if (error) throw error;
+    allReports = data || [];
+    document.getElementById('lastUpdate').textContent =
+      'Mis à jour ' + new Date().toLocaleTimeString('fr-FR');
+
+    processData();
+    renderOverview();
+    renderProspects();
+    renderReports();
+  } catch (e) {
+    console.error(e);
+    showError('Erreur de connexion Supabase : ' + e.message);
+  }
+}
+
+function processData() {
+  allProspects = [];
+  allReports.forEach(r => {
+    if (r.prospects) {
+      try {
+        const match = r.prospects.match(/\[[\s\S]*\]/);
+        if (match) {
+          const ps = JSON.parse(match[0]);
+          ps.forEach(p => {
+            allProspects.push({ ...p, _niche: r.niche, _date: r.date_creation });
+          });
+        }
+      } catch(e) {}
+    }
+  });
+}
+
+function showNeedsConfig() {
+  const msg = `<div class="empty-state">
+    <div class="empty-icon">🔑</div>
+    <p style="font-size:15px;font-weight:600;margin-bottom:8px;">Clés API non configurées</p>
+    <p>Cliquez sur <strong>⚙️ Configurer les clés API</strong> dans le menu de gauche.</p>
+  </div>`;
+  document.getElementById('alertGrid').innerHTML = msg;
+  document.getElementById('recentActivity').innerHTML = msg;
+  document.getElementById('prospectsTable').innerHTML = `<tr><td colspan="8">${msg}</td></tr>`;
+  document.getElementById('reportsList').innerHTML = msg;
+}
+
+function showError(msg) {
+  const html = `<div class="empty-state">
+    <div class="empty-icon">❌</div>
+    <p>${msg}</p>
+    <button class="btn btn-ghost btn-sm" style="margin-top:12px" onclick="openConfig()">Reconfigurer</button>
+  </div>`;
+  document.getElementById('alertGrid').innerHTML = html;
+}
+
+// ════════════════════════════════════════
+// OVERVIEW
+// ════════════════════════════════════════
+function renderOverview() {
+  document.getElementById('stat-reports').textContent = allReports.length;
+  document.getElementById('stat-prospects').textContent = allProspects.length;
+
+  const niches = [...new Set(allReports.map(r => r.niche))];
+  document.getElementById('stat-niches').textContent = niches.length || 3;
+
+  // Alert grid
+  const alertCounts = { VERT: 0, ORANGE: 0, ROUGE: 0 };
+  allReports.forEach(r => {
+    if (r.kpis) {
+      if (r.kpis.includes('ROUGE')) alertCounts.ROUGE++;
+      else if (r.kpis.includes('ORANGE')) alertCounts.ORANGE++;
+      else alertCounts.VERT++;
+    }
+  });
+  document.getElementById('alertGrid').innerHTML = `
+    <div class="stat-card" style="border-color:rgba(16,185,129,.3)">
+      <div class="stat-label">✅ Vert (OK)</div>
+      <div class="stat-value" style="background:linear-gradient(135deg,var(--green),#34d399);-webkit-background-clip:text;">${alertCounts.VERT}</div>
+      <div class="stat-sub">rapports sans alerte</div>
+    </div>
+    <div class="stat-card" style="border-color:rgba(245,158,11,.3)">
+      <div class="stat-label">⚠️ Orange (Attention)</div>
+      <div class="stat-value" style="background:linear-gradient(135deg,var(--orange),#fbbf24);-webkit-background-clip:text;">${alertCounts.ORANGE}</div>
+      <div class="stat-sub">rapports à surveiller</div>
+    </div>
+    <div class="stat-card" style="border-color:rgba(239,68,68,.3)">
+      <div class="stat-label">🚨 Rouge (Critique)</div>
+      <div class="stat-value" style="background:linear-gradient(135deg,var(--red),#f87171);-webkit-background-clip:text;">${alertCounts.ROUGE}</div>
+      <div class="stat-sub">rapports critiques</div>
+    </div>
+  `;
+
+  // Recent activity
+  const recent = allReports.slice(0, 6);
+  if (recent.length === 0) {
+    document.getElementById('recentActivity').innerHTML = '<div class="empty-state"><p>Aucune activité enregistrée</p></div>';
+    return;
+  }
+  document.getElementById('recentActivity').innerHTML = `
+    <table style="width:100%">
+      <thead>
+        <tr>
+          <th>Date</th><th>Niche</th><th>Prospects</th><th>Revenus estimés</th><th>Alerte</th>
+        </tr>
+      </thead>
+      <tbody>
+        ${recent.map(r => {
+          const alerte = r.kpis
+            ? (r.kpis.includes('ROUGE') ? 'ROUGE' : r.kpis.includes('ORANGE') ? 'ORANGE' : 'VERT')
+            : 'VERT';
+          const badgeClass = alerte === 'ROUGE' ? 'badge-red' : alerte === 'ORANGE' ? 'badge-orange' : 'badge-green';
+          let nbProspects = 0;
+          if (r.prospects) {
+            const m = r.prospects.match(/\[[\s\S]*\]/);
+            if (m) try { nbProspects = JSON.parse(m[0]).length; } catch(e) {}
+          }
+          return `<tr>
+            <td style="color:var(--text2)">${new Date(r.date_creation).toLocaleDateString('fr-FR')}</td>
+            <td><strong>${r.niche}</strong></td>
+            <td>${nbProspects} contact(s)</td>
+            <td style="color:var(--green)">${r.revenus_estimes || '—'}</td>
+            <td><span class="badge ${badgeClass}">${alerte}</span></td>
+          </tr>`;
+        }).join('')}
+      </tbody>
+    </table>
+  `;
+}
+
+// ════════════════════════════════════════
+// PROSPECTS
+// ════════════════════════════════════════
+function renderProspects(filter = {}) {
+  let ps = allProspects;
+
+  const nicheF   = (filter.niche   || document.getElementById('filterNiche')?.value   || '').toLowerCase();
+  const companyF = (filter.company || document.getElementById('filterCompany')?.value || '').toLowerCase();
+
+  if (nicheF)   ps = ps.filter(p => (p._niche || '').toLowerCase().includes(nicheF));
+  if (companyF) ps = ps.filter(p => (p.entreprise || '').toLowerCase().includes(companyF));
+
+  document.getElementById('prospectsCount').textContent = ps.length;
+
+  if (ps.length === 0) {
+    document.getElementById('prospectsTable').innerHTML = `
+      <tr><td colspan="8">
+        <div class="empty-state">
+          <div class="empty-icon">👥</div>
+          <p>${allProspects.length === 0 ? 'Aucun prospect en base. Lancez le pipeline depuis GitHub Actions.' : 'Aucun résultat pour ce filtre.'}</p>
+        </div>
+      </td></tr>`;
+    return;
+  }
+
+  const nicheColors = {};
+  const allNiches = [...new Set(allProspects.map(p => p._niche))];
+  allNiches.forEach((n, i) => nicheColors[n] = i % 3);
+
+  document.getElementById('prospectsTable').innerHTML = ps.map(p => `
+    <tr>
+      <td><strong>${p.prenom || '—'}</strong> ${p.nom ? p.nom : ''}</td>
+      <td>${p.entreprise || '—'}</td>
+      <td><a href="mailto:${p.email || ''}" style="color:var(--blue);text-decoration:none;">${p.email || '—'}</a></td>
+      <td style="color:var(--text2)">${p.secteur || '—'}</td>
+      <td><span class="niche-pill niche-${nicheColors[p._niche] ?? 0}">${p._niche || '—'}</span></td>
+      <td style="color:var(--green)">${p.budget || '—'}</td>
+      <td style="max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--text2)" title="${p.probleme || ''}">${p.probleme || '—'}</td>
+      <td style="color:var(--text2)">${p._date ? new Date(p._date).toLocaleDateString('fr-FR') : '—'}</td>
+    </tr>
+  `).join('');
+}
+
+function filterProspects() { renderProspects(); }
+
+// ════════════════════════════════════════
+// REPORTS
+// ════════════════════════════════════════
+function renderReports(filter = '') {
+  const f = (filter || document.getElementById('filterReportNiche')?.value || '').toLowerCase();
+  const rs = f ? allReports.filter(r => (r.niche || '').toLowerCase().includes(f)) : allReports;
+
+  if (rs.length === 0) {
+    document.getElementById('reportsList').innerHTML = `
+      <div class="empty-state">
+        <div class="empty-icon">📋</div>
+        <p>${allReports.length === 0 ? 'Aucun rapport en base. Lancez le pipeline.' : 'Aucun résultat pour ce filtre.'}</p>
+      </div>`;
+    return;
+  }
+
+  document.getElementById('reportsList').innerHTML = rs.map((r, i) => {
+    const alerte = r.kpis
+      ? (r.kpis.includes('ROUGE') ? 'ROUGE' : r.kpis.includes('ORANGE') ? 'ORANGE' : 'VERT')
+      : 'VERT';
+    const badgeClass = alerte === 'ROUGE' ? 'badge-red' : alerte === 'ORANGE' ? 'badge-orange' : 'badge-green';
+
+    return `
+    <div class="report-item" onclick="toggleReport('report-${i}')">
+      <div class="report-header">
+        <div>
+          <div class="report-niche">${r.niche}</div>
+          <div class="report-date">${new Date(r.date_creation).toLocaleString('fr-FR')}</div>
+        </div>
+        <div style="display:flex;align-items:center;gap:10px;">
+          <span style="color:var(--green);font-size:13px">${r.revenus_estimes || ''}</span>
+          <span class="badge ${badgeClass}">${alerte}</span>
+          <span style="color:var(--text2)">▼</span>
+        </div>
+      </div>
+      <div class="report-body" id="report-${i}">
+        ${r.contenu ? `<div class="report-section">
+          <div class="report-section-title">📊 Analyse Marché</div>
+          <div class="report-text">${escHtml(r.contenu.substring(0, 800))}${r.contenu.length > 800 ? '...' : ''}</div>
+        </div>` : ''}
+        ${r.prospects ? `<div class="report-section">
+          <div class="report-section-title">👥 Prospects générés</div>
+          <div class="report-text">${formatProspectsPreview(r.prospects)}</div>
+        </div>` : ''}
+        ${r.emails_vente ? `<div class="report-section">
+          <div class="report-section-title">📧 Template Email</div>
+          <div class="report-text">${escHtml(r.emails_vente.substring(0, 500))}${r.emails_vente.length > 500 ? '...' : ''}</div>
+        </div>` : ''}
+        ${r.plan_90_jours ? `<div class="report-section">
+          <div class="report-section-title">📅 Plan 90 Jours</div>
+          <div class="report-text">${escHtml(r.plan_90_jours.substring(0, 600))}${r.plan_90_jours.length > 600 ? '...' : ''}</div>
+        </div>` : ''}
+        ${r.kpis ? `<div class="report-section">
+          <div class="report-section-title">🚨 KPIs & Alertes</div>
+          <div class="report-text">${escHtml(r.kpis)}</div>
+        </div>` : ''}
+      </div>
+    </div>`;
+  }).join('');
+}
+
+function filterReports() { renderReports(); }
+
+function toggleReport(id) {
+  const el = document.getElementById(id);
+  if (el) el.classList.toggle('open');
+}
+
+function formatProspectsPreview(json) {
+  try {
+    const match = json.match(/\[[\s\S]*\]/);
+    if (match) {
+      const ps = JSON.parse(match[0]);
+      return ps.map(p => `• <strong>${p.prenom} ${p.nom || ''}</strong> — ${p.entreprise} (${p.email})`).join('\n');
+    }
+  } catch(e) {}
+  return escHtml(json.substring(0, 300));
+}
+
+function escHtml(s) {
+  return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+}
+
+// ════════════════════════════════════════
+// AGENTS
+// ════════════════════════════════════════
+const AGENTS = [
+  {
+    id: 1,
+    icon: '🔍',
+    name: 'Agent 1 — Analyse Marché',
+    desc: 'Analyse la niche cible, identifie la taille du marché, les tendances, les problèmes clients, les concurrents et les opportunités de revenus.',
+    tags: ['Groq LLM', 'Llama 3.3 70B', 'Analyse'],
+    codeRef: 'business_agents_groq.py:139',
+    fn: 'agent_analyse_marche(niche)',
+    systemPrompt: 'Tu es un expert en analyse de marché B2B. Tu analyses des niches et fournis des insights précis sur la taille du marché, les tendances, les problèmes des clients, les concurrents et les opportunités de revenus. Tu réponds en français, de façon structurée et actionnable.'
+  },
+  {
+    id: 2,
+    icon: '👥',
+    name: 'Agent 2 — Génération Prospects',
+    desc: 'Génère des profils JSON de prospects idéaux (entreprise, secteur, problème, budget, email, prénom/nom) pour la niche cible.',
+    tags: ['JSON Output', 'Leads B2B', 'Groq LLM'],
+    codeRef: 'business_agents_groq.py:151',
+    fn: 'agent_generation_prospects(niche, analyse)',
+    systemPrompt: 'Tu es un expert en génération de leads B2B. Tu crées des profils détaillés de prospects idéaux en JSON avec leurs coordonnées complètes et leurs problématiques principales. Tes réponses sont uniquement du JSON valide, sans texte superflu.'
+  },
+  {
+    id: 3,
+    icon: '📧',
+    name: 'Agent 3 — Cold Email',
+    desc: 'Rédige des cold emails B2B percutants : objet accrocheur, corps court (150 mots max), CTA clair, ton professionnel humain.',
+    tags: ['Copywriting', 'Cold Email', 'CTA'],
+    codeRef: 'business_agents_groq.py:173',
+    fn: 'agent_email_vente(niche, analyse)',
+    systemPrompt: 'Tu es un copywriter expert en cold email B2B en français. Tu rédiges des emails percutants avec un objet accrocheur, un corps court (150 mots max) et un CTA clair. Ton ton est professionnel mais humain, jamais commercial ou agressif.'
+  },
+  {
+    id: 4,
+    icon: '📅',
+    name: 'Agent 4 — Plan 90 Jours',
+    desc: 'Crée un plan d\'action 90 jours structuré en 3 mois : Fondations → Lancement → Croissance. Inclut les KPIs hebdomadaires.',
+    tags: ['Business Plan', 'KPIs', '3 mois'],
+    codeRef: 'business_agents_groq.py:187',
+    fn: 'agent_plan_90_jours(niche)',
+    systemPrompt: 'Tu es un consultant business expert. Tu crées des plans d\'action 90 jours concrets et actionnables, structurés en Mois 1 (Fondations), Mois 2 (Lancement), Mois 3 (Croissance), avec des KPIs hebdomadaires précis pour chaque semaine.'
+  },
+  {
+    id: 5,
+    icon: '🚨',
+    name: 'Agent 5 — Contrôle Qualité',
+    desc: 'Évalue la qualité des rapports générés. Produit un score de santé (0-100), détecte les problèmes et fixe le niveau d\'alerte : VERT / ORANGE / ROUGE.',
+    tags: ['QA', 'Score 0-100', 'Alertes'],
+    codeRef: 'business_agents_groq.py:202',
+    fn: 'agent_defaillance(niche, rapport)',
+    systemPrompt: 'Tu es un agent de contrôle qualité pour un système business automatisé. Tu évalues la qualité des rapports générés, attribues un score de santé de 0 à 100, identifies les problèmes précis, et détermines un niveau d\'alerte VERT (OK), ORANGE (attention) ou ROUGE (critique). Tu proposes des actions correctives concrètes.'
+  },
+  {
+    id: 6,
+    icon: '📈',
+    name: 'Agent 6 — Évolution & Optimisation',
+    desc: 'Analyse l\'historique Supabase (5 derniers rapports), propose 3 axes d\'amélioration, suggère de nouvelles niches et une stratégie de croissance des revenus.',
+    tags: ['Supabase', 'Historique', 'Croissance'],
+    codeRef: 'business_agents_groq.py:239',
+    fn: 'agent_evolution(niche, rapport_actuel)',
+    systemPrompt: 'Tu es un agent d\'évolution et d\'optimisation business. Tu analyses les tendances historiques, proposes 3 axes d\'amélioration concrets, suggères des niches connexes à explorer, proposes une stratégie de croissance des revenus, et tu termines avec un message de motivation pour l\'entrepreneur.'
+  },
+  {
+    id: 7,
+    icon: '🤖',
+    name: 'Agent 7 — Envoi & Relances',
+    desc: 'Personnalise les emails pour chaque prospect et gère les séquences de relance automatique J+1 / J+3 / J+5 / J+7 via Gmail SMTP.',
+    tags: ['Gmail SMTP', 'Relances J1-J7', 'Personnalisation'],
+    codeRef: 'business_agents_groq.py:282',
+    fn: 'agent_envoi_prospects(niche, prospects_json, template)',
+    systemPrompt: 'Tu es un expert en cold email B2B et automatisation. Tu personnalises les emails de vente pour chaque prospect en intégrant leur prénom, entreprise et problème. Tu gères les séquences de relance J+1 (suivi chaleureux), J+3 (valeur ajoutée), J+5 (urgence douce), J+7 (clôture professionnelle). Tes emails font max 80 mots.'
+  }
+];
+
+function renderAgents() {
+  document.getElementById('agentsGrid').innerHTML = AGENTS.map(a => `
+    <div class="agent-card" onclick="openChatPanel(${a.id})">
+      <div class="agent-header">
+        <div class="agent-icon">${a.icon}</div>
+        <div>
+          <div class="agent-num">Agent ${a.id} • Pipeline Nexivo</div>
+          <div class="agent-name">${a.name.replace(/^Agent \d+ — /, '')}</div>
+        </div>
+      </div>
+      <div class="agent-desc">${a.desc}</div>
+      <div class="agent-meta">
+        ${a.tags.map(t => `<span class="badge badge-blue">${t}</span>`).join('')}
+      </div>
+      <div class="code-ref">
+        📄 ${a.codeRef}<br/>
+        <span style="color:var(--text2)">${a.fn}</span>
+      </div>
+      <div class="agent-actions" style="margin-top:14px">
+        <button class="btn btn-primary btn-sm" onclick="event.stopPropagation();openChatPanel(${a.id})">💬 Chat</button>
+        <a href="https://github.com/inonbkrs/business-ia/blob/main/business_agents_groq.py"
+           target="_blank" onclick="event.stopPropagation()">
+          <button class="btn btn-ghost btn-sm">🔗 Code</button>
+        </a>
+      </div>
+    </div>
+  `).join('');
+}
+
+// ════════════════════════════════════════
+// CHAT
+// ════════════════════════════════════════
+function openChatPanel(agentId) {
+  const agent = AGENTS.find(a => a.id === agentId);
+  if (!agent) return;
+
+  currentAgent = agent;
+  chatHistory = [];
+
+  document.getElementById('chatIcon').textContent = agent.icon;
+  document.getElementById('chatName').textContent = agent.name;
+  document.getElementById('chatSub').textContent = 'Agent ' + agent.id + ' — En ligne';
+
+  const msgs = document.getElementById('chatMessages');
+  msgs.innerHTML = `
+    <div class="msg agent">
+      <div class="msg-avatar">${agent.icon}</div>
+      <div class="msg-bubble">
+        Bonjour ! Je suis <strong>${agent.name}</strong>.<br><br>
+        ${getAgentWelcome(agent.id)}
+      </div>
+    </div>
+  `;
+
+  document.getElementById('chatOverlay').classList.add('open');
+  document.getElementById('chatInput').focus();
+}
+
+function getAgentWelcome(id) {
+  const w = {
+    1: 'Donnez-moi une niche et je vous ferai une analyse de marché complète.',
+    2: 'Donnez-moi une niche et une analyse marché, je génèrerai des prospects qualifiés en JSON.',
+    3: 'Donnez-moi une niche ou un contexte, je vous rédigerai un cold email percutant.',
+    4: 'Quelle niche voulez-vous lancer ? Je vous crée un plan 90 jours actionnable.',
+    5: 'Partagez-moi un rapport ou des résultats, je ferai un audit qualité avec score de santé.',
+    6: 'Partagez vos résultats actuels et je vous proposerai des axes d\'amélioration concrets.',
+    7: 'Comment puis-je vous aider avec vos emails et vos relances ?'
+  };
+  return w[id] || 'Comment puis-je vous aider ?';
+}
+
+function closeChat() {
+  document.getElementById('chatOverlay').classList.remove('open');
+  currentAgent = null;
+  chatHistory = [];
+}
+
+function autoResize(el) {
+  el.style.height = 'auto';
+  el.style.height = Math.min(el.scrollHeight, 100) + 'px';
+}
+
+async function sendMessage() {
+  if (!currentAgent) return;
+  const input = document.getElementById('chatInput');
+  const text = input.value.trim();
+  if (!text) return;
+
+  if (!GROQ_KEY) {
+    alert('Clé Groq non configurée. Allez dans ⚙️ Configurer les clés API.');
+    return;
+  }
+
+  input.value = '';
+  input.style.height = 'auto';
+  document.getElementById('sendBtn').disabled = true;
+
+  // Add user message
+  appendMessage('user', '👤', text);
+
+  chatHistory.push({ role: 'user', content: text });
+
+  // Add typing indicator
+  const typingId = 'typing-' + Date.now();
+  appendTyping(typingId);
+
+  try {
+    const response = await fetch('https://api.groq.com/openai/v1/chat/completions', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': 'Bearer ' + GROQ_KEY
+      },
+      body: JSON.stringify({
+        model: 'llama-3.3-70b-versatile',
+        messages: [
+          { role: 'system', content: currentAgent.systemPrompt },
+          ...chatHistory
+        ],
+        temperature: 0.7,
+        max_tokens: 1500
+      })
+    });
+
+    const data = await response.json();
+    if (!response.ok) throw new Error(data.error?.message || 'Erreur API Groq');
+
+    const reply = data.choices[0].message.content;
+    chatHistory.push({ role: 'assistant', content: reply });
+
+    removeTyping(typingId);
+    appendMessage('agent', currentAgent.icon, reply);
+  } catch(e) {
+    removeTyping(typingId);
+    appendMessage('agent', '❌', 'Erreur : ' + e.message);
+  }
+
+  document.getElementById('sendBtn').disabled = false;
+  input.focus();
+}
+
+function appendMessage(role, avatar, text) {
+  const msgs = document.getElementById('chatMessages');
+  const div = document.createElement('div');
+  div.className = 'msg ' + role;
+  div.innerHTML = `
+    <div class="msg-avatar">${avatar}</div>
+    <div class="msg-bubble">${escHtml(text).replace(/\n/g, '<br/>')}</div>
+  `;
+  msgs.appendChild(div);
+  msgs.scrollTop = msgs.scrollHeight;
+}
+
+function appendTyping(id) {
+  const msgs = document.getElementById('chatMessages');
+  const div = document.createElement('div');
+  div.id = id;
+  div.className = 'msg agent';
+  div.innerHTML = `
+    <div class="msg-avatar">${currentAgent.icon}</div>
+    <div class="msg-bubble msg-typing">En train d'écrire<span class="spinner" style="margin-left:8px;vertical-align:middle"></span></div>
+  `;
+  msgs.appendChild(div);
+  msgs.scrollTop = msgs.scrollHeight;
+}
+
+function removeTyping(id) {
+  const el = document.getElementById(id);
+  if (el) el.remove();
+}
+
+// ════════════════════════════════════════
+// TASKS
+// ════════════════════════════════════════
+const TASKS = [
+  { done: true,  title: 'Pipeline 7 agents complet', sub: 'Agent 1→7 enchaînés via lancer_pipeline()' },
+  { done: true,  title: 'Intégration Supabase', sub: 'Table rapports — stockage quotidien automatique' },
+  { done: true,  title: 'Google Sheets tracking', sub: 'Suivi prospects + colonnes J1/J3/J5/J7' },
+  { done: true,  title: 'Relances automatiques J1·J3·J5·J7', sub: 'Gmail SMTP — 4 types de relance personnalisés' },
+  { done: true,  title: 'Landing page Nexivo', sub: 'GitHub Pages — design glassmorphism dark' },
+  { done: true,  title: 'GitHub Actions CI/CD', sub: 'Cron daily 8h UTC — déclenchement automatique' },
+  { done: true,  title: 'Dashboard IA (cette page)', sub: 'Supabase connect + chat agents + vue prospects' },
+  { done: false, title: 'Désactiver MODE_TEST → Production', sub: 'Changer MODE_TEST = False dans business_agents_groq.py:37', urgent: true },
+  { done: false, title: 'Tracking taux de réponse', sub: 'Détecter les replies dans Gmail et mettre à jour le Sheet' },
+  { done: false, title: 'A/B testing emails', sub: 'Tester 2 templates sur 50/50 des prospects' },
+  { done: false, title: 'Élargir liste des niches', sub: 'Actuellement 3 niches — objectif 10+ dans NICHES[]' },
+  { done: false, title: 'Intégration CRM', sub: 'HubSpot ou Notion pour pipeline commercial visuel' },
+  { done: false, title: 'Mécanisme désinscription (RGPD)', sub: 'Lien unsubscribe dans chaque email envoyé' },
+  { done: false, title: 'Analytics email (taux d\'ouverture)', sub: 'Tracking pixel ou API SendGrid/Brevo' },
+  { done: false, title: 'Onboarding client automatisé', sub: 'Quand un prospect répond positivement → séquence contrat' },
+  { done: false, title: 'Facturation automatique', sub: 'Générer et envoyer les factures aux clients actifs' },
+];
+
+function renderTasks() {
+  const done = TASKS.filter(t => t.done);
+  const todo = TASKS.filter(t => !t.done);
+
+  document.getElementById('tasksList').innerHTML = `
+    <div style="display:flex;gap:16px;margin-bottom:24px;flex-wrap:wrap;">
+      <div class="stat-card" style="flex:1;min-width:160px">
+        <div class="stat-label">Complétées</div>
+        <div class="stat-value" style="background:linear-gradient(135deg,var(--green),#34d399);-webkit-background-clip:text;">${done.length}</div>
+      </div>
+      <div class="stat-card" style="flex:1;min-width:160px">
+        <div class="stat-label">À faire</div>
+        <div class="stat-value" style="background:linear-gradient(135deg,var(--orange),#fbbf24);-webkit-background-clip:text;">${todo.length}</div>
+      </div>
+      <div class="stat-card" style="flex:1;min-width:160px">
+        <div class="stat-label">Progression</div>
+        <div class="stat-value" style="font-size:24px">${Math.round(done.length/TASKS.length*100)}%</div>
+      </div>
+    </div>
+
+    <div style="background:var(--bg2);border:1px solid var(--border);border-radius:10px;overflow:hidden;margin-bottom:24px">
+      <div style="height:8px;background:linear-gradient(90deg,var(--green) ${Math.round(done.length/TASKS.length*100)}%,var(--bg3) 0%)"></div>
+    </div>
+
+    <div class="section-title">🔴 À faire</div>
+    ${todo.map(t => `
+      <div class="task-item">
+        <div class="task-check">${t.urgent ? '🔴' : '⬜'}</div>
+        <div class="task-content">
+          <div class="task-title">${t.title}${t.urgent ? ' <span class="badge badge-red" style="font-size:10px">URGENT</span>' : ''}</div>
+          <div class="task-sub">${t.sub}</div>
+        </div>
+      </div>`).join('')}
+
+    <div class="section-title" style="margin-top:24px">✅ Fait</div>
+    ${done.map(t => `
+      <div class="task-item task-done">
+        <div class="task-check">✅</div>
+        <div class="task-content">
+          <div class="task-title">${t.title}</div>
+          <div class="task-sub">${t.sub}</div>
+        </div>
+      </div>`).join('')}
+  `;
+}
+
+// ════════════════════════════════════════
+// INIT
+// ════════════════════════════════════════
+document.addEventListener('DOMContentLoaded', () => {
+  renderAgents();
+  renderTasks();
+
+  if (initSupabase()) {
+    loadAllData();
+  } else {
+    openConfig();
+    showNeedsConfig();
+  }
+});
+</script>
+</body>
+</html>
